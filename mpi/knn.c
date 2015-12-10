@@ -71,13 +71,16 @@ int main(){
 
 	srand (time(NULL));  //such randomness wow
 	
-	
-	int Pprocesses=2; //from 0 to 7
+	int Pprocesses=4; //from 0 to 7
 	int processes=1<<Pprocesses;
 	int Pnumberofpoints=15; // from 0(?) to 25
 	int numberofpoints=1<<Pnumberofpoints;
 	int Pnumberboxes=7; //from 12 to 16
 	int numboxes=1<<Pnumberboxes;
+	int Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process
+	int numboxesperprocess=1<<Pnumboxesperprocess;
+	
+	int processid=2; //for testing purposes - this should be dynamically allocated
 	
 	
 	// coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
@@ -107,14 +110,24 @@ int main(){
 	boxdimensions[1]=1<<(Pnumberboxes/3);
 	if (Pnumberboxes%3 == 2)	boxdimensions[1]*=2; //double the boxes in this row if mod3 is 2
 	boxdimensions[2]=1<<(Pnumberboxes/3);
-		
+	printf("grid dimensions: %d, %d, %d\n",boxdimensions[0],boxdimensions[1],boxdimensions[2]);
 	/*
-		printf("grid dimensions: %d, %d, %d\n",boxdimensions[0],boxdimensions[1],boxdimensions[2]);
 	if (boxdimensions[0]*boxdimensions[1]*boxdimensions[2]!=numboxes) {//fuckup in the math
 		printf("mathfuckup\n"); 
 		return 1;
 	} 
 	*/
+	
+	//same idea, but with splits. each splitted part of the grid will go to another process
+	int splitdimensions[3];
+	int gridsplitsize[3];
+	splitdimensions[0]=1<<(Pprocesses/3);
+	if (Pprocesses%3 > 0)	splitdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
+	splitdimensions[1]=1<<(Pprocesses/3);
+	if (Pprocesses%3 == 2)	splitdimensions[1]*=2; //double the boxes in this row if mod3 is 2
+	splitdimensions[2]=1<<(Pprocesses/3);	
+	for(int i=0;i<3;i++) gridsplitsize[i]=boxdimensions[i]/splitdimensions[i];
+	printf("grid split size: %d, %d, %d\n",gridsplitsize[0],gridsplitsize[1],gridsplitsize[2]);
 	
 		
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
