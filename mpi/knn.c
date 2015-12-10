@@ -154,6 +154,8 @@ int main(int argc, char **argv){
 	
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
+	//this could be done with box IDs and not coordinates, and it wouldnt require the 3d allocation, it was written before the convention
+	//im too bored to fix it
 	float ***qgridcount; //how many points in each grid box
 	float ***cgridcount; //how many points in each grid box
 	if ((qgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
