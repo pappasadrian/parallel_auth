@@ -4,13 +4,28 @@
 #include <time.h>
 #include <sys/time.h>
 
+//global variables
+int boxdimensions[3];
 
-//find in which grid box the point at the given coordinates is at. returns an array with 3 int elements.
-void findinwhichbox(float x,float y,float z,int n,int m, int k, int *ret){ 
-	ret[0] = (int)(x*n);
-	ret[1] = (int)(y*m);
-	ret[2] = (int)(z*k);
-	return;
+//get box coordinates from box id
+void getboxcoords(int id, int *coords){
+	coords[0]=id%boxdimensions[0];
+	coords[1]=(id/boxdimensions[0])%boxdimensions[1];
+	coords[2]=((id/boxdimensions[0])/boxdimensions[1])%boxdimensions[2];
+}
+//get box id from coordinates
+int getboxid(int x, int y, int z){
+	int i= x+y*(boxdimensions[0])+z*boxdimensions[0]*boxdimensions[1];
+	return i;
+}
+
+//find in which grid box the point at the given coordinates is at. returns box id
+int findinwhichbox(float x,float y,float z){ 
+	int ret[3];
+	ret[0] = (int)(x*boxdimensions[0]); //rounds down to the nearest int
+	ret[1] = (int)(y*boxdimensions[1]);
+	ret[2] = (int)(z*boxdimensions[2]);
+	return getboxid(ret[0],ret[1],ret[2]);
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
@@ -67,17 +82,25 @@ float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
 }
 
 
-int main(){
+int main(int argc, char **argv){
 
+	if (argc != 4) {
+		printf("Usage: %s Q P B\n",argv[0]);
+		printf("Q: number of points (power of two - from 20 to 25)\n");
+		printf("P: number of processes (power of two - from 0 to 7)\n");
+		printf("B: number of boxes (power of two - from 12 to 16)\n");
+		return 1;
+	}
+  
 	srand (time(NULL));  //such randomness wow
 	
-	int Pprocesses=4; //from 0 to 7
+	int Pprocesses=atoi(argv[2]); //from 0 to 7
 	int processes=1<<Pprocesses;
-	int Pnumberofpoints=15; // from 0(?) to 25
+	int Pnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes points.
 	int numberofpoints=1<<Pnumberofpoints;
-	int Pnumberboxes=7; //from 12 to 16
+	int Pnumberboxes=atoi(argv[3]); //from 12 to 16
 	int numboxes=1<<Pnumberboxes;
-	int Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process
+	int Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process, aka splits
 	int numboxesperprocess=1<<Pnumboxesperprocess;
 	
 	int processid=2; //for testing purposes - this should be dynamically allocated
@@ -104,7 +127,6 @@ int main(){
 	//Each boxdimension shows how many boxes are on each dimension of our cube.
 	//n<=m<=k is kept.
 	//Trust me, self of the future, I did the math.
-	int boxdimensions[3];
 	boxdimensions[0]=1<<(Pnumberboxes/3);
 	if (Pnumberboxes%3 > 0)	boxdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
 	boxdimensions[1]=1<<(Pnumberboxes/3);
@@ -149,19 +171,87 @@ int main(){
 	int *cbox = malloc(sizeof(int) * (3 * numberofpoints / processes));
 	
 	for (int i=0;i<numberofpoints/processes;i++){
-		findinwhichbox(q[3*i],q[3*i+1],q[3*i+2],boxdimensions[0],boxdimensions[1],boxdimensions[2], &qbox[3*i]);
-		findinwhichbox(c[3*i],c[3*i+1],c[3*i+2],boxdimensions[0],boxdimensions[1],boxdimensions[2], &cbox[3*i]);
+		int idq = findinwhichbox(q[3*i],q[3*i+1],q[3*i+2]);
+		int idc = findinwhichbox(c[3*i],c[3*i+1],c[3*i+2]);
+		getboxcoords(idq, &qbox[3*i]);
+		getboxcoords(idc, &cbox[3*i]);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		//count number of points in each box
 		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]+=1;
 		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]+=1;
 	}
 	
+	
+	//these will have the coordinates of each point in a specific box split
+	int *qgridsplits[numboxes][3];
+	int *cgridsplits[numboxes][3];
+	
+	for (int i=0; i < numboxes; ++i){
+		//get box number, coordinates from boxid. boxid=i
+		int coord[3];
+		getboxcoords(i, &coord[0]);
+		//printf("\ndef id = %d \n%d,%d,%d\n",i,coord[0],coord[1],coord[2]);
+		//if( getboxid(coord[0],coord[1],coord[2]) != i) printf("MATHERRORHERE");
+		for (int j=0; j < 3; ++j){
+			if ((qgridsplits[i][j] = malloc(qgridcount[coord[0]][coord[1]][coord[2]] * sizeof *qgridsplits[i][j])) == NULL) {
+				perror("malloc 3");
+				return 1;
+			}
+			/*for (int k=0;k<qgridcount[coord[0]][coord[1]][coord[2]];k++){
+				qgridsplits[i][j][k]=q[
+			}*/
+			if ((cgridsplits[i][j] = malloc(cgridcount[coord[0]][coord[1]][coord[2]] * sizeof *cgridsplits[i][j])) == NULL) {
+				perror("malloc 3");
+				return 1;
+			}
+			/*for (int k=0;k<cgridcount[coord[0]][coord[1]][coord[2]];k++){
+				
+			}*/
+		}
+	}
+	
+	//put points in splits
+	int *ccountforboxes = malloc(numboxes * sizeof(int));
+	int *qcountforboxes = malloc(numboxes * sizeof(int));
+	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }
+	
+	for (int i=0;i<numberofpoints/processes;i++){
+		int qtempid=getboxid(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
+		int ctempid=getboxid(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
+		for (int j=0;j<3;j++){
+			qgridsplits[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
+			cgridsplits[ctempid][j][ccountforboxes[ctempid]]=q[3*i+j];	
+		}
+		qcountforboxes[qtempid]++;
+		ccountforboxes[ctempid]++;
+		if (qcountforboxes[qtempid]>qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]) printf("mathfuckup\n");
+		if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
+	}
+	/*for (int i=0;i<numberofpoints/processes;i++){
+		
+		qcountforboxes[0]++;
+		ccountforboxes[0]++;
+
+	}*/
+	
 	/*
+	int qtemp=0;
+	int qtemp2=0;
+	int ctemp=0;
+	int ctemp2=0;
 	for (int i=0; i < boxdimensions[0]; ++i)
 		for (int j=0; j < boxdimensions[1]; ++j)
 			for (int k=0; k < boxdimensions[2]; ++k){
-				printf("Box %d,%d,%d\nQ: %f\nC: %f\n\n",i+1,j+1,k+1,qgridcount[i][j][k],cgridcount[i][j][k]);
-			}*/
+				qtemp+=(int)qgridcount[i][j][k];
+				ctemp+=(int)cgridcount[i][j][k];
+				int tempid=getboxid(i,j,k);
+				qtemp2+=qcountforboxes[tempid];
+				ctemp2+=ccountforboxes[tempid];
+				printf("Box %d,%d,%d ID: %d\nQ: %d %d\nC: %d %d\n\n",i+1,j+1,k+1,tempid,(int)qgridcount[i][j][k],qcountforboxes[tempid],(int)cgridcount[i][j][k],ccountforboxes[tempid]);
+			}
+	printf("Qtot: %d\nCtot: %d\n",qtemp,ctemp);
+	printf("Qtot: %d\nCtot: %d\n",qtemp2,ctemp2);
+	printf("%d %d\n",numberofpoints/processes,numboxes);
+	*/
 	return 0;
 }
