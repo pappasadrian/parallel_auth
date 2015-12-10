@@ -4,6 +4,8 @@
 #include <time.h>
 #include <sys/time.h>
 
+
+//find in which grid box the point at the given coordinates is at. returns an array with 3 int elements.
 void findinwhichbox(float x,float y,float z,int n,int m, int k, int *ret){ 
 	ret[0] = (int)(x*n);
 	ret[1] = (int)(y*m);
@@ -11,6 +13,8 @@ void findinwhichbox(float x,float y,float z,int n,int m, int k, int *ret){
 	return;
 }
 
+//free allocated 3d memory - not used for now, might be useful in the future
+// this is copy-paste code, and it just works
 void free_3d(float ***data, size_t xlen, size_t ylen)
 {
 	size_t i, j;
@@ -25,6 +29,8 @@ void free_3d(float ***data, size_t xlen, size_t ylen)
 	free(data);
 }
 
+// allocate a 3d float table, with fixed dimensions (ie no different line size for each line)
+// this is copy-paste code, and it just works
 float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
 {
 	float ***p;
@@ -62,19 +68,25 @@ float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
 
 
 int main(){
+
 	srand (time(NULL));  //such randomness wow
+	
+	
 	int Pprocesses=2; //from 0 to 7
 	int processes=1<<Pprocesses;
 	int Pnumberofpoints=15; // from 0(?) to 25
 	int numberofpoints=1<<Pnumberofpoints;
 	int Pnumberboxes=7; //from 12 to 16
 	int numboxes=1<<Pnumberboxes;
+	
+	
+	// coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
 	float *q = malloc(sizeof(float) * (3 * numberofpoints / processes));
 	float *c = malloc(sizeof(float) * (3 * numberofpoints / processes));
 	
 	
 	for (int i=0;i<numberofpoints*3/processes;i++){
-		q[i]=(float)rand() / RAND_MAX;
+		q[i]=(float)rand() / RAND_MAX; //random value from 0 to 1
 		c[i]=(float)rand() / RAND_MAX;
 	}
 	
@@ -106,6 +118,7 @@ int main(){
 	
 		
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
+	//these will keep tabs on how many points are in each grid box
 	float ***qgridcount; //how many points in each grid box
 	float ***cgridcount; //how many points in each grid box
 	if ((qgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
@@ -126,6 +139,7 @@ int main(){
 		findinwhichbox(q[3*i],q[3*i+1],q[3*i+2],boxdimensions[0],boxdimensions[1],boxdimensions[2], &qbox[3*i]);
 		findinwhichbox(c[3*i],c[3*i+1],c[3*i+2],boxdimensions[0],boxdimensions[1],boxdimensions[2], &cbox[3*i]);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
+		//count number of points in each box
 		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]+=1;
 		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]+=1;
 	}
