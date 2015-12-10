@@ -236,7 +236,7 @@ int main(int argc, char **argv){
 
 	}*/
 	
-	
+	/*
 	int qtemp=0;
 	int qtemp2=0;
 	int ctemp=0;
@@ -254,6 +254,6 @@ int main(int argc, char **argv){
 	printf("Qtot: %d\nCtot: %d\n",qtemp,ctemp);
 	printf("Qtot: %d\nCtot: %d\n",qtemp2,ctemp2);
 	printf("%d %d\n",numberofpoints/processes,numboxes);
-
+*/
 	return 0;
 }
