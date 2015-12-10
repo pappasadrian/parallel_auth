@@ -184,8 +184,8 @@ int main(int argc, char **argv){
 	}
 	
 	//these will have the coordinates of each point in a specific box
-	int *qpointsinbox[numboxes][3];
-	int *cpointsinbox[numboxes][3];
+	float *qpointsinbox[numboxes][3];
+	float *cpointsinbox[numboxes][3];
 	
 	for (int i=0; i < numboxes; ++i){
 		//get box number, coordinates from boxid. boxid=i
@@ -215,7 +215,7 @@ int main(int argc, char **argv){
 		int ctempid=getboxid(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
 		for (int j=0;j<3;j++){
 			qpointsinbox[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
-			cpointsinbox[ctempid][j][ccountforboxes[ctempid]]=q[3*i+j];	
+			cpointsinbox[ctempid][j][ccountforboxes[ctempid]]=c[3*i+j];	
 		}
 		qcountforboxes[qtempid]++;
 		ccountforboxes[ctempid]++;
@@ -253,6 +253,15 @@ int main(int argc, char **argv){
 	printf("Qtot: %d\nCtot: %d\n",qtemp,ctemp);
 	printf("Qtot: %d\nCtot: %d\n",qtemp2,ctemp2);
 	printf("%d %d\n",numberofpoints/processes,numboxes);
-*/
+	
+	*/
+	/*see points in a certain box
+	int testbox=2000;
+	for (int i=0;i<qcountforboxes[testbox];i++){
+		printf("\nPoint %d: ",i);
+		for (int j=0;j<3;j++)
+			printf("%f,",qpointsinbox[testbox][j][i]);
+	}
+	*/
 	return 0;
 }
