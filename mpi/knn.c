@@ -107,9 +107,8 @@ int main(int argc, char **argv){
 	
 	
 	// coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
-	float *q = malloc(sizeof(float) * (3 * numberofpoints / processes));
+	float *q = malloc(sizeof(float) * (3 * numberofpoints / processes)); //numberofpoints/processes, because the points are spread through the active processes
 	float *c = malloc(sizeof(float) * (3 * numberofpoints / processes));
-	
 	
 	for (int i=0;i<numberofpoints*3/processes;i++){
 		q[i]=(float)rand() / RAND_MAX; //random value from 0 to 1
@@ -127,6 +126,7 @@ int main(int argc, char **argv){
 	//Each boxdimension shows how many boxes are on each dimension of our cube.
 	//n<=m<=k is kept.
 	//Trust me, self of the future, I did the math.
+	//generally, we can refer to these boxes either by ID or by coordinates. there are functions that do this. 
 	boxdimensions[0]=1<<(Pnumberboxes/3);
 	if (Pnumberboxes%3 > 0)	boxdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
 	boxdimensions[1]=1<<(Pnumberboxes/3);
@@ -141,6 +141,7 @@ int main(int argc, char **argv){
 	*/
 	
 	//same idea, but with splits. each splitted part of the grid will go to another process
+	//i am not sure why i did this. but it might get handy. 
 	int splitdimensions[3];
 	int gridsplitsize[3];
 	splitdimensions[0]=1<<(Pprocesses/3);
@@ -151,7 +152,6 @@ int main(int argc, char **argv){
 	for(int i=0;i<3;i++) gridsplitsize[i]=boxdimensions[i]/splitdimensions[i];
 	printf("grid split size: %d, %d, %d\n",gridsplitsize[0],gridsplitsize[1],gridsplitsize[2]);
 	
-		
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
 	float ***qgridcount; //how many points in each grid box
@@ -177,14 +177,14 @@ int main(int argc, char **argv){
 		getboxcoords(idc, &cbox[3*i]);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		//count number of points in each box
-		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]+=1;
-		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]+=1;
+		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]++;
+		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]++;
 	}
 	
 	
-	//these will have the coordinates of each point in a specific box split
-	int *qgridsplits[numboxes][3];
-	int *cgridsplits[numboxes][3];
+	//these will have the coordinates of each point in a specific box
+	int *qpointsinbox[numboxes][3];
+	int *cpointsinbox[numboxes][3];
 	
 	for (int i=0; i < numboxes; ++i){
 		//get box number, coordinates from boxid. boxid=i
@@ -193,25 +193,19 @@ int main(int argc, char **argv){
 		//printf("\ndef id = %d \n%d,%d,%d\n",i,coord[0],coord[1],coord[2]);
 		//if( getboxid(coord[0],coord[1],coord[2]) != i) printf("MATHERRORHERE");
 		for (int j=0; j < 3; ++j){
-			if ((qgridsplits[i][j] = malloc(qgridcount[coord[0]][coord[1]][coord[2]] * sizeof *qgridsplits[i][j])) == NULL) {
+			if ((qpointsinbox[i][j] = malloc(qgridcount[coord[0]][coord[1]][coord[2]] * sizeof *qpointsinbox[i][j])) == NULL) {
 				perror("malloc 3");
 				return 1;
 			}
-			/*for (int k=0;k<qgridcount[coord[0]][coord[1]][coord[2]];k++){
-				qgridsplits[i][j][k]=q[
-			}*/
-			if ((cgridsplits[i][j] = malloc(cgridcount[coord[0]][coord[1]][coord[2]] * sizeof *cgridsplits[i][j])) == NULL) {
+			if ((cpointsinbox[i][j] = malloc(cgridcount[coord[0]][coord[1]][coord[2]] * sizeof *cpointsinbox[i][j])) == NULL) {
 				perror("malloc 3");
 				return 1;
 			}
-			/*for (int k=0;k<cgridcount[coord[0]][coord[1]][coord[2]];k++){
-				
-			}*/
 		}
 	}
 	
-	//put points in splits
-	int *ccountforboxes = malloc(numboxes * sizeof(int));
+	//put points in boxes, and keep the data in different tables - this will be useful for passing boxes around
+	int *ccountforboxes = malloc(numboxes * sizeof(int));//keep tabs
 	int *qcountforboxes = malloc(numboxes * sizeof(int));
 	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }
 	
@@ -219,8 +213,8 @@ int main(int argc, char **argv){
 		int qtempid=getboxid(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		int ctempid=getboxid(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
 		for (int j=0;j<3;j++){
-			qgridsplits[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
-			cgridsplits[ctempid][j][ccountforboxes[ctempid]]=q[3*i+j];	
+			qpointsinbox[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
+			cpointsinbox[ctempid][j][ccountforboxes[ctempid]]=q[3*i+j];	
 		}
 		qcountforboxes[qtempid]++;
 		ccountforboxes[ctempid]++;
@@ -229,6 +223,8 @@ int main(int argc, char **argv){
 	}
 	
 	
+	
+	//data tests - can be ignored
 	/*for (int i=0;i<numberofpoints/processes;i++){
 		
 		qcountforboxes[0]++;
