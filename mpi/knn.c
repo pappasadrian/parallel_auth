@@ -224,9 +224,11 @@ int main(int argc, char **argv){
 		}
 		qcountforboxes[qtempid]++;
 		ccountforboxes[ctempid]++;
-		if (qcountforboxes[qtempid]>qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]) printf("mathfuckup\n");
-		if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
+		//if (qcountforboxes[qtempid]>qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]) printf("mathfuckup\n");
+		//if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
 	}
+	
+	
 	/*for (int i=0;i<numberofpoints/processes;i++){
 		
 		qcountforboxes[0]++;
@@ -234,24 +236,24 @@ int main(int argc, char **argv){
 
 	}*/
 	
-	/*
+	
 	int qtemp=0;
 	int qtemp2=0;
 	int ctemp=0;
 	int ctemp2=0;
-	for (int i=0; i < boxdimensions[0]; ++i)
-		for (int j=0; j < boxdimensions[1]; ++j)
-			for (int k=0; k < boxdimensions[2]; ++k){
-				qtemp+=(int)qgridcount[i][j][k];
-				ctemp+=(int)cgridcount[i][j][k];
-				int tempid=getboxid(i,j,k);
-				qtemp2+=qcountforboxes[tempid];
-				ctemp2+=ccountforboxes[tempid];
-				printf("Box %d,%d,%d ID: %d\nQ: %d %d\nC: %d %d\n\n",i+1,j+1,k+1,tempid,(int)qgridcount[i][j][k],qcountforboxes[tempid],(int)cgridcount[i][j][k],ccountforboxes[tempid]);
-			}
+	int ct[3];
+	for (int i=0; i < numboxes; ++i){
+		getboxcoords(i, &ct[0]);
+		qtemp+=(int)qgridcount[ct[0]][ct[1]][ct[2]];
+		ctemp+=(int)cgridcount[ct[0]][ct[1]][ct[2]];
+		int tempid=getboxid(ct[0],ct[1],ct[2]);
+		qtemp2+=qcountforboxes[tempid];
+		ctemp2+=ccountforboxes[tempid];
+		printf("Box %d,%d,%d \nID: %d == %d\nQ: %d %d\nC: %d %d\n\n",ct[0]+1,ct[1]+1,ct[2]+1,tempid, i,(int)qgridcount[ct[0]][ct[1]][ct[2]],qcountforboxes[tempid],(int)cgridcount[ct[0]][ct[1]][ct[2]],ccountforboxes[tempid]);
+	}
 	printf("Qtot: %d\nCtot: %d\n",qtemp,ctemp);
 	printf("Qtot: %d\nCtot: %d\n",qtemp2,ctemp2);
 	printf("%d %d\n",numberofpoints/processes,numboxes);
-	*/
+
 	return 0;
 }
