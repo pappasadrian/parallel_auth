@@ -7,7 +7,29 @@
 //global variables
 int boxdimensions[3];
 int splitdimensions[3];
-int gridsplitsize[3];
+int boxespersplit[3];
+int Pprocesses;
+int processes;
+int Pnumberofpoints;
+int numberofpoints;
+int Pnumberboxes;
+int numboxes;
+int Pnumboxesperprocess;
+int numboxesperprocess;
+
+int processid=0; //for testing purposes - this should be dynamically allocated
+
+//get split coordinates from process id
+void getsplitcoords(int id, int *coords){
+	coords[0]=id%splitdimensions[0];
+	coords[1]=(id/splitdimensions[0])%splitdimensions[1];
+	coords[2]=((id/splitdimensions[0])/splitdimensions[1])%splitdimensions[2];
+}
+//get process id from split coordinates
+int getprocessid(int x, int y, int z){
+	int i= x+y*(splitdimensions[0])+z*splitdimensions[0]*splitdimensions[1];
+	return i;
+}
 
 //get box coordinates from box id
 void getboxcoords(int id, int *coords){
@@ -28,6 +50,75 @@ int findinwhichbox(float x,float y,float z){
 	ret[1] = (int)(y*boxdimensions[1]);
 	ret[2] = (int)(z*boxdimensions[2]);
 	return getboxid(ret[0],ret[1],ret[2]);
+}
+
+//find which process's is the given box (by id)
+int whosebox(int boxid){
+	int boxcoords[3];
+	getboxcoords(boxid,&boxcoords[0]);
+	int splitcoords[3];
+	for (int i=0;i<3;i++) splitcoords[i]=boxcoords[i]/boxespersplit[i];
+	int pro;
+	pro = getprocessid(splitcoords[0],splitcoords[1],splitcoords[2]);
+	return pro;
+}	
+
+//check if given boxid belongs to current process
+int ismybox(int id){
+	if (whosebox(id)==processid) return 1;
+	else return 0;
+}
+//get the id of a neigboring box. direction can be from 1 to 6, think the boxes
+//this disregards diagonally adjascent boxes. this could be changed to 14 or 26 adjascent boxes
+//must be discussed
+int getneigborid(int id, int dir){
+	int boxcoords[3];
+	getboxcoords(id,&boxcoords[0]);
+	switch (dir){
+		case 1:
+			if (boxcoords[0]<boxdimensions[0]) boxcoords[0]++;
+			else return -1;
+			break;
+		case 2:
+			if (boxcoords[1]<boxdimensions[1]) boxcoords[1]++;
+			else return -1;
+			break;
+		case 3:
+			if (boxcoords[2]<boxdimensions[2]) boxcoords[2]++;
+			else return -1;
+			break;
+		case 4:
+			if (boxcoords[0]>0)boxcoords[0]--;
+			else return -1;
+			break;
+		case 5:
+			if (boxcoords[1]>0)boxcoords[1]--;
+			else return -1;
+			break;
+		case 6: 
+			if (boxcoords[2]>0)boxcoords[2]--;
+			else return -1;
+			break;
+		default:
+			return -1;
+		} 
+	int temp;
+	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
+	return temp;
+}
+//check if given box is adjascent to this process's split. will be used for C. 
+int isadjascentbox(int id){	
+	for (int i=0;i<numboxes;i++){	
+	if(ismybox(i)) {
+	printf("yolo\n");
+		for (int j=1;j<7;j++){
+			int testneigbor = getneigborid(i,j);
+			if(testneigbor!=-1&&ismybox(testneigbor)==0) 
+				printf("%d is my neigbor!\n",testneigbor);
+		}
+	}
+	}
+	return id;//to be done
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
@@ -95,17 +186,14 @@ int main(int argc, char **argv){
   
 	srand (time(NULL));  //such randomness wow
 	
-	int Pprocesses=atoi(argv[2]); //from 0 to 7
-	int processes=1<<Pprocesses;
-	int Pnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes points.
-	int numberofpoints=1<<Pnumberofpoints;
-	int Pnumberboxes=atoi(argv[3]); //from 12 to 16
-	int numboxes=1<<Pnumberboxes;
-	int Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process, aka splits
-	int numboxesperprocess=1<<Pnumboxesperprocess;
-	
-	int processid=2; //for testing purposes - this should be dynamically allocated
-	
+	Pprocesses=atoi(argv[2]); //from 0 to 7
+	processes=1<<Pprocesses;
+	Pnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes points.
+	numberofpoints=1<<Pnumberofpoints;
+	Pnumberboxes=atoi(argv[3]); //from 12 to 16
+	numboxes=1<<Pnumberboxes;
+	Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process, aka splits
+	numboxesperprocess=1<<Pnumboxesperprocess;
 	
 	// coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
 	float *q = malloc(sizeof(float) * (3 * numberofpoints / processes)); //numberofpoints/processes, because the points are spread through the active processes
@@ -133,7 +221,7 @@ int main(int argc, char **argv){
 	boxdimensions[1]=1<<(Pnumberboxes/3);
 	if (Pnumberboxes%3 == 2)	boxdimensions[1]*=2; //double the boxes in this row if mod3 is 2
 	boxdimensions[2]=1<<(Pnumberboxes/3);
-	printf("grid dimensions: %d, %d, %d\n",boxdimensions[0],boxdimensions[1],boxdimensions[2]);
+	//printf("grid dimensions: %d, %d, %d\n",boxdimensions[0],boxdimensions[1],boxdimensions[2]);
 	/*
 	if (boxdimensions[0]*boxdimensions[1]*boxdimensions[2]!=numboxes) {//fuckup in the math
 		printf("mathfuckup\n"); 
@@ -141,16 +229,15 @@ int main(int argc, char **argv){
 	} 
 	*/
 	
-	//same idea, but with splits. each splitted part of the grid will go to another process
-	//i am not sure why i did this. but it might get handy. 
+	//same idea, but with splits. each split contains many boxes and belongs to a process
 	splitdimensions[0]=1<<(Pprocesses/3);
 	if (Pprocesses%3 > 0)	splitdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
 	splitdimensions[1]=1<<(Pprocesses/3);
 	if (Pprocesses%3 == 2)	splitdimensions[1]*=2; //double the boxes in this row if mod3 is 2
 	splitdimensions[2]=1<<(Pprocesses/3);
 		
-	for(int i=0;i<3;i++) gridsplitsize[i]=boxdimensions[i]/splitdimensions[i];
-	printf("grid split size: %d, %d, %d\n",gridsplitsize[0],gridsplitsize[1],gridsplitsize[2]);
+	for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
+	//printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
 	
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
@@ -263,5 +350,11 @@ int main(int argc, char **argv){
 			printf("%f,",qpointsinbox[testbox][j][i]);
 	}
 	*/
-	return 0;
+	//which box is in each split
+	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
+	//find my boxes
+	for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
+	//findneibors
+	int i;
+	i=isadjascentbox(1);
 }
