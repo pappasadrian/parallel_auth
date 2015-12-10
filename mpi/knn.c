@@ -6,6 +6,8 @@
 
 //global variables
 int boxdimensions[3];
+int splitdimensions[3];
+int gridsplitsize[3];
 
 //get box coordinates from box id
 void getboxcoords(int id, int *coords){
@@ -77,7 +79,6 @@ float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
 				free_3d(p, xlen, ylen);
 				return NULL;
 			}
-
 	return p;
 }
 
@@ -142,13 +143,12 @@ int main(int argc, char **argv){
 	
 	//same idea, but with splits. each splitted part of the grid will go to another process
 	//i am not sure why i did this. but it might get handy. 
-	int splitdimensions[3];
-	int gridsplitsize[3];
 	splitdimensions[0]=1<<(Pprocesses/3);
 	if (Pprocesses%3 > 0)	splitdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
 	splitdimensions[1]=1<<(Pprocesses/3);
 	if (Pprocesses%3 == 2)	splitdimensions[1]*=2; //double the boxes in this row if mod3 is 2
-	splitdimensions[2]=1<<(Pprocesses/3);	
+	splitdimensions[2]=1<<(Pprocesses/3);
+		
 	for(int i=0;i<3;i++) gridsplitsize[i]=boxdimensions[i]/splitdimensions[i];
 	printf("grid split size: %d, %d, %d\n",gridsplitsize[0],gridsplitsize[1],gridsplitsize[2]);
 	
@@ -183,7 +183,6 @@ int main(int argc, char **argv){
 		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]++;
 	}
 	
-	
 	//these will have the coordinates of each point in a specific box
 	int *qpointsinbox[numboxes][3];
 	int *cpointsinbox[numboxes][3];
@@ -209,9 +208,9 @@ int main(int argc, char **argv){
 	//put points in boxes, and keep the data in different tables - this will be useful for passing boxes around
 	int *ccountforboxes = malloc(numboxes * sizeof(int));//keep tabs
 	int *qcountforboxes = malloc(numboxes * sizeof(int));
-	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }
+	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }//init with 0s
 	
-	for (int i=0;i<numberofpoints/processes;i++){
+	for (int i=0;i<numberofpoints/processes;i++){//for each point in this process
 		int qtempid=getboxid(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		int ctempid=getboxid(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
 		for (int j=0;j<3;j++){
@@ -224,16 +223,18 @@ int main(int argc, char **argv){
 		//if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
 	}
 	
+	//from here on, the data passing must commence.
+	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
+	//all processes must know which box goes to which process.
 	
+	//suggestion/hack/slacking around: each process should process its boxes, meaning that it will check the Q points in its boxes
+	//however, it is a good idea that it keeps C points that are not only in its boxes, but also to the boxes adjascent to it. 
+	//like that, when it is searching at the neighbour boxes of a box at an edge, it wont have to mpi call another process to get the data back
+	//this will only be done once at the beginning.
+	//ie each process will keep and receive the Q points in its boxes, and the C points in its boxes and adjascent boxes.
+	//this is a hack but it will save us from a lot of mpi calls during search, which might lead to many locks that will drop performance 
 	
 	//data tests - can be ignored
-	/*for (int i=0;i<numberofpoints/processes;i++){
-		
-		qcountforboxes[0]++;
-		ccountforboxes[0]++;
-
-	}*/
-	
 	/*
 	int qtemp=0;
 	int qtemp2=0;
