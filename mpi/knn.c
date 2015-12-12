@@ -17,7 +17,7 @@ int numboxes;
 int Pnumboxesperprocess;
 int numboxesperprocess;
 
-int processid=0; //for testing purposes - this should be dynamically allocated
+int processid=3; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
 void getsplitcoords(int id, int *coords){
@@ -25,6 +25,7 @@ void getsplitcoords(int id, int *coords){
 	coords[1]=(id/splitdimensions[0])%splitdimensions[1];
 	coords[2]=((id/splitdimensions[0])/splitdimensions[1])%splitdimensions[2];
 }
+
 //get process id from split coordinates
 int getprocessid(int x, int y, int z){
 	int i= x+y*(splitdimensions[0])+z*splitdimensions[0]*splitdimensions[1];
@@ -37,6 +38,7 @@ void getboxcoords(int id, int *coords){
 	coords[1]=(id/boxdimensions[0])%boxdimensions[1];
 	coords[2]=((id/boxdimensions[0])/boxdimensions[1])%boxdimensions[2];
 }
+
 //get box id from coordinates
 int getboxid(int x, int y, int z){
 	int i= x+y*(boxdimensions[0])+z*boxdimensions[0]*boxdimensions[1];
@@ -68,6 +70,7 @@ int ismybox(int id){
 	if (whosebox(id)==processid) return 1;
 	else return 0;
 }
+
 //get the id of a neigboring box. direction can be from 1 to 6, think the boxes
 //this disregards diagonally adjascent boxes. this could be changed to 14 or 26 adjascent boxes
 //must be discussed
@@ -106,19 +109,40 @@ int getneigborid(int id, int dir){
 	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
 	return temp;
 }
-//check if given box is adjascent to this process's split. will be used for C. 
-int isadjascentbox(int id){	
+
+//check if given box is adjascent to a specified process's split. will be used for C. 
+//there must be some smarter, more math-based way to perform this rather than brute forcing it
+//but fuck it
+void getadjascentboxesofaprocess(int pid, int *nb){	
+	int count=0;
 	for (int i=0;i<numboxes;i++){	
-	if(ismybox(i)) {
-	printf("yolo\n");
-		for (int j=1;j<7;j++){
-			int testneigbor = getneigborid(i,j);
-			if(testneigbor!=-1&&ismybox(testneigbor)==0) 
-				printf("%d is my neigbor!\n",testneigbor);
+		if(whosebox(i)==pid) {
+			for (int j=1;j<7;j++){
+				int testneigbor = getneigborid(i,j);
+				if(testneigbor!=-1&&ismybox(testneigbor)==0) 
+				{
+					nb[count]=testneigbor;
+					count++;
+					//printf("%d\n",testneigbor);
+				}
+			}
 		}
 	}
+	nb[count]=-1; //shows the end of the neigbors.
+}
+
+//find if a given box is adjascent to another split, and return that split's processid
+//else (if it has no neigbor split, return -1
+int whoseneigboristhis(int thisid){
+	for (int j=1;j<7;j++){
+		int testneigbor = getneigborid(thisid,j);
+		if(testneigbor!=-1&&ismybox(testneigbor)==0) 
+		{
+			int temp = whosebox(testneigbor);
+			return temp;
+		}
 	}
-	return id;//to be done
+	return -1;
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
@@ -173,7 +197,7 @@ float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
 	return p;
 }
 
-
+//main function
 int main(int argc, char **argv){
 
 	if (argc != 4) {
@@ -237,7 +261,7 @@ int main(int argc, char **argv){
 	splitdimensions[2]=1<<(Pprocesses/3);
 		
 	for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
-	//printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
+	printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
 	
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
@@ -310,16 +334,45 @@ int main(int argc, char **argv){
 		//if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
 	}
 	
+	//find neinbors of boxes of this split, in order to keep them for C. 
+	int maxneigbors;
+	maxneigbors=(boxespersplit[0]*boxespersplit[1]+boxespersplit[0]*boxespersplit[2]+boxespersplit[1]*boxespersplit[2])*2;
+	int *neigbors = malloc(maxneigbors * sizeof(int));
+	getadjascentboxesofaprocess(processid, &neigbors[0]);
+	
 	//from here on, the data passing must commence.
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
 	//all processes must know which box goes to which process.
+	for (int i=0;i<numboxes;i++){
+		int tempid=whosebox(i);
+		if (tempid!=processid){
+			//passbox(**qpointsinbox[i],toprocess(processid))
+			//same for C
+		}
+	}
 	
+	//see whose neigbor is each box of this process
+	//so, if we're searching in this box, we have to request from the neigbor process to pass the box to us.
+	for (int i=0;i<numboxes;i++){
+		if (ismybox(i)){
+			int temp;
+			temp=whoseneigboristhis(i);
+			if (temp==-1) printf("Box %d has no neighbor\n",i);
+			else printf("Box %d is neigbor to procees %d\n",i,temp);
+		}
+	}
+	
+	//NOTE THAT THE FOLLOWING ARE NOT IN ACCORDANCE TO THE EKFONISI
 	//suggestion/hack/slacking around: each process should process its boxes, meaning that it will check the Q points in its boxes
 	//however, it is a good idea that it keeps C points that are not only in its boxes, but also to the boxes adjascent to it. 
 	//like that, when it is searching at the neighbour boxes of a box at an edge, it wont have to mpi call another process to get the data back
 	//this will only be done once at the beginning.
 	//ie each process will keep and receive the Q points in its boxes, and the C points in its boxes and adjascent boxes.
 	//this is a hack but it will save us from a lot of mpi calls during search, which might lead to many locks that will drop performance 
+	
+	//another hack would be to completely disregard searches of nearest neigbor in different boxes outside our split
+	//but it is bad, it will lead to mistakes at the borders.
+	//however, it will make message passing much much easier and ill use it if all else fails.
 	
 	//data tests - can be ignored
 	/*
@@ -353,8 +406,7 @@ int main(int argc, char **argv){
 	//which box is in each split
 	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
 	//find my boxes
-	for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
-	//findneibors
-	int i;
-	i=isadjascentbox(1);
+	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
+	
+	
 }
