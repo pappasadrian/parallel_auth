@@ -145,6 +145,16 @@ int whoseneigboristhis(int thisid){
 	return -1;
 }
 
+//evaluate the euclidean distance between two points
+float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
+	float d = sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
+	return d;
+}
+
+void checkqpointsinbox(float **c, float **q, int clength, int qlength){
+	for (int i=0;i<qlength;i++) i++;
+}
+
 //free allocated 3d memory - not used for now, might be useful in the future
 // this is copy-paste code, and it just works
 void free_3d(float ***data, size_t xlen, size_t ylen)
@@ -160,6 +170,7 @@ void free_3d(float ***data, size_t xlen, size_t ylen)
 	}
 	free(data);
 }
+
 
 // allocate a 3d float table, with fixed dimensions (ie no different line size for each line)
 // this is copy-paste code, and it just works
@@ -353,12 +364,62 @@ int main(int argc, char **argv){
 	
 	//see whose neigbor is each box of this process
 	//so, if we're searching in this box, we have to request from the neigbor process to pass the box to us.
+	// i failed to pass my awkward 3d matrices to a function, so i did this monstrocity...
 	for (int i=0;i<numboxes;i++){
 		if (ismybox(i)){
-			int temp;
-			temp=whoseneigboristhis(i);
-			if (temp==-1) printf("Box %d has no neighbor\n",i);
-			else printf("Box %d is neigbor to procees %d\n",i,temp);
+			//printf("%d q points\n",ccountforboxes[i]);
+			for (int j=0;j<qcountforboxes[i];j++){
+				float qcoordtemp[3];
+				float ccandidate[3];
+				float cfinal[3];
+				qcoordtemp[0]=qpointsinbox[i][0][j];
+				qcoordtemp[1]=qpointsinbox[i][1][j];
+				qcoordtemp[2]=qpointsinbox[i][2][j];
+				
+				float bestdistance;
+				int tempcandidate;
+				float tempdistance;
+				//printf("%d c points\n",ccountforboxes[j]);
+				for (int cp=0;cp<ccountforboxes[j];cp++){
+					tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[i][0][cp],cpointsinbox[i][1][cp],cpointsinbox[i][2][cp]);
+					if (tempdistance<bestdistance||cp==0) {
+						//printf("-|-");
+						bestdistance=tempdistance;
+						tempcandidate=cp;
+					}
+					
+				}
+				cfinal[0]=cpointsinbox[i][0][tempcandidate];
+				cfinal[1]=cpointsinbox[i][1][tempcandidate];
+				cfinal[2]=cpointsinbox[i][2][tempcandidate];
+				
+				for (int dir=1;dir<7;dir++){
+					int tempid=getneigborid(i, dir);//new c box to search at
+					if (tempid!=-1){//if there is a neigbor
+						if (ismybox(tempid)){
+							//printf("LOOKINGATNEIGBOR\n");
+							for (int cp=0;cp<ccountforboxes[tempid];cp++){
+								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
+								if (tempdistance<bestdistance) {
+									printf("BETTERATNEIGBOR\n");
+									bestdistance=tempdistance;
+									tempcandidate=cp;
+									cfinal[0]=cpointsinbox[i][0][tempcandidate];
+									cfinal[1]=cpointsinbox[i][1][tempcandidate];
+									cfinal[2]=cpointsinbox[i][2][tempcandidate];
+								}
+							}
+						}
+						else{//must look in neigbor process
+							//lets ignore this for now
+							//printf("could have been at neigbor process\n");
+						}
+					}
+					
+				}	
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
+			}
+		//printf("\nNEXTBOX\n");
 		}
 	}
 	
@@ -373,6 +434,8 @@ int main(int argc, char **argv){
 	//another hack would be to completely disregard searches of nearest neigbor in different boxes outside our split
 	//but it is bad, it will lead to mistakes at the borders.
 	//however, it will make message passing much much easier and ill use it if all else fails.
+	
+	//note that there is a shitload of messages to be passed around during point search, so this might actually be a good idea...
 	
 	//data tests - can be ignored
 	/*
