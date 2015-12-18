@@ -20,102 +20,62 @@ int numboxesperprocess;
 int processid=3; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
-void getsplitcoords(int id, int *coords){
+void procID_2_split(int id, int *coords){
 	coords[0]=id%splitdimensions[0];
 	coords[1]=(id/splitdimensions[0])%splitdimensions[1];
 	coords[2]=((id/splitdimensions[0])/splitdimensions[1])%splitdimensions[2];
 }
 
 //get process id from split coordinates
-int getprocessid(int x, int y, int z){
+int split_2_procID(int x, int y, int z){
 	int i= x+y*(splitdimensions[0])+z*splitdimensions[0]*splitdimensions[1];
 	return i;
 }
 
 //get box coordinates from box id
-void getboxcoords(int id, int *coords){
+void get_box_coords(int id, int *coords){
 	coords[0]=id%boxdimensions[0];
 	coords[1]=(id/boxdimensions[0])%boxdimensions[1];
 	coords[2]=((id/boxdimensions[0])/boxdimensions[1])%boxdimensions[2];
 }
 
 //get box id from coordinates
-int getboxid(int x, int y, int z){
+int get_box_id(int x, int y, int z){
 	int i= x+y*(boxdimensions[0])+z*boxdimensions[0]*boxdimensions[1];
 	return i;
 }
 
 //find in which grid box the point at the given coordinates is at. returns box id
-int findinwhichbox(float x,float y,float z){ 
+int find_in_which_box(float x,float y,float z){ 
 	int ret[3];
 	ret[0] = (int)(x*boxdimensions[0]); //rounds down to the nearest int
 	ret[1] = (int)(y*boxdimensions[1]);
 	ret[2] = (int)(z*boxdimensions[2]);
-	return getboxid(ret[0],ret[1],ret[2]);
+	return get_box_id(ret[0],ret[1],ret[2]);
 }
 
 //find which process's is the given box (by id)
-int whosebox(int boxid){
+int get_box_owner(int boxid){
 	int boxcoords[3];
-	getboxcoords(boxid,&boxcoords[0]);
+	get_box_coords(boxid,&boxcoords[0]);
 	int splitcoords[3];
 	for (int i=0;i<3;i++) splitcoords[i]=boxcoords[i]/boxespersplit[i];
 	int pro;
-	pro = getprocessid(splitcoords[0],splitcoords[1],splitcoords[2]);
+	pro = split_2_procID(splitcoords[0],splitcoords[1],splitcoords[2]);
 	return pro;
 }	
 
 //check if given boxid belongs to current process
-int ismybox(int id){
-	if (whosebox(id)==processid) return 1;
+inline is_my_box(int id){
+	if (get_box_owner(id)==processid) return 1;
 	else return 0;
 }
 
-//get the id of a neigboring box. direction can be from 1 to 6, think the boxes
-//this disregards diagonally adjacent boxes. this could be changed to 14 or 26 adjacent boxes
-//must be discussed
-//NEW NOTE: THIS IS OUTDATED - COMMENTING OUT
-/*
-int getneigborid(int id, int dir){
-	int boxcoords[3];
-	getboxcoords(id,&boxcoords[0]);
-	switch (dir){
-		case 1:
-			if (boxcoords[0]<boxdimensions[0]) boxcoords[0]++;
-			else return -1;
-			break;
-		case 2:
-			if (boxcoords[1]<boxdimensions[1]) boxcoords[1]++;
-			else return -1;
-			break;
-		case 3:
-			if (boxcoords[2]<boxdimensions[2]) boxcoords[2]++;
-			else return -1;
-			break;
-		case 4:
-			if (boxcoords[0]>0)boxcoords[0]--;
-			else return -1;
-			break;
-		case 5:
-			if (boxcoords[1]>0)boxcoords[1]--;
-			else return -1;
-			break;
-		case 6: 
-			if (boxcoords[2]>0)boxcoords[2]--;
-			else return -1;
-			break;
-		default:
-			return -1;
-		} 
-	int temp;
-	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
-	return temp;
-}
-*/
+
 //new getneighborid, which can return any of the 26 adjacent boxes.
-int getneigborid(int id, int dirx, int diry, int dirz){
+int get_neighbor_boxID_coords(int id, int dirx, int diry, int dirz){
 	int boxcoords[3];
-	getboxcoords(id,&boxcoords[0]);
+	get_box_coords(id,&boxcoords[0]);
 	switch (dirx){
 		case 1:
 			if (boxcoords[0]<boxdimensions[0]) boxcoords[0]++;
@@ -159,7 +119,7 @@ int getneigborid(int id, int dirx, int diry, int dirz){
 			return -1;
 		}
 	int temp;
-	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
+	temp=get_box_id(boxcoords[0],boxcoords[1],boxcoords[2]);
 	//printf("%d ",temp);
 	return temp;
 }
@@ -167,7 +127,7 @@ int getneigborid(int id, int dirx, int diry, int dirz){
 //helper function for using getneigborid(int id, int dirx, int diry, int dirz)
 //in for loops from 0 to 26, for checking all neigbors
 //one of the iterations of the loop will return Q's box. in that case, we return -2 for reference
-int getaneigbor(int loopnum, int boxid){
+int get_neighbor_id(int loopnum, int boxid){
 	int x, y, z;
 	int neighbor;
 	//loopnum++;
@@ -180,7 +140,7 @@ int getaneigbor(int loopnum, int boxid){
 		return -2;
 	}
 	else{
-		neighbor=getneigborid(boxid,x,y,z);
+		neighbor=get_neighbor_boxID_coords(boxid,x,y,z);
 		return neighbor;
 	}
 }
@@ -211,26 +171,23 @@ void getadjacentboxesofaprocess(int pid, int *nb){
 */
 
 //evaluate the euclidean distance between two points
-float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
+inline euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
 	float d = sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
 	return d;
 }
 
-void checkqpointsinbox(float **c, float **q, int clength, int qlength){
-	for (int i=0;i<qlength;i++) i++;
-}
 
 //check if given box is closer than the candidate distance of q from candidate c
 //this is done by using this generic code, that sees if a sphere intersects a cuboid.
 //returns true if it intersect, false if it doesnt.
-float squared(float v) { return v * v; }
+inline float squared(float v) { return v * v; }
 //bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
-int doescubeintersectsphere(int boxid, float qx, float qy, float qz, float R)
+int does_box_intersect_sphere(int boxid, float qx, float qy, float qz, float R)
 {
 	float distancesquared = R * R;
 	/* assume C1 and C2 are element-wise sorted, if not, do that now */
 	int boxcoords[3];
-	getboxcoords(boxid, &boxcoords[0]);
+	get_box_coords(boxid, &boxcoords[0]);
 	float xmin, xmax, ymin, ymax, zmin, zmax;
 	xmin=(float)boxcoords[0]/(float)boxdimensions[0];
 	xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
@@ -391,10 +348,10 @@ int main(int argc, char **argv){
 	int *cbox = malloc(sizeof(int) * (3 * numberofpoints / processes));
 	
 	for (int i=0;i<numberofpoints/processes;i++){
-		int idq = findinwhichbox(q[3*i],q[3*i+1],q[3*i+2]);
-		int idc = findinwhichbox(c[3*i],c[3*i+1],c[3*i+2]);
-		getboxcoords(idq, &qbox[3*i]);
-		getboxcoords(idc, &cbox[3*i]);
+		int idq = find_in_which_box(q[3*i],q[3*i+1],q[3*i+2]);
+		int idc = find_in_which_box(c[3*i],c[3*i+1],c[3*i+2]);
+		get_box_coords(idq, &qbox[3*i]);
+		get_box_coords(idc, &cbox[3*i]);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		//count number of points in each box
 		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]++;
@@ -408,7 +365,7 @@ int main(int argc, char **argv){
 	for (int i=0; i < numboxes; ++i){
 		//get box number, coordinates from boxid. boxid=i
 		int coord[3];
-		getboxcoords(i, &coord[0]);
+		get_box_coords(i, &coord[0]);
 		//printf("\ndef id = %d \n%d,%d,%d\n",i,coord[0],coord[1],coord[2]);
 		//if( getboxid(coord[0],coord[1],coord[2]) != i) printf("MATHERRORHERE");
 		for (int j=0; j < 3; ++j){
@@ -429,8 +386,8 @@ int main(int argc, char **argv){
 	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }//init with 0s
 	
 	for (int i=0;i<numberofpoints/processes;i++){//for each point in this process
-		int qtempid=getboxid(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
-		int ctempid=getboxid(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
+		int qtempid=get_box_id(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
+		int ctempid=get_box_id(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
 		for (int j=0;j<3;j++){
 			qpointsinbox[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
 			cpointsinbox[ctempid][j][ccountforboxes[ctempid]]=c[3*i+j];	
@@ -452,7 +409,7 @@ int main(int argc, char **argv){
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
 	//all processes must know which box goes to which process.
 	for (int i=0;i<numboxes;i++){
-		int tempid=whosebox(i);
+		int tempid=get_box_owner(i);
 		if (tempid!=processid){
 			//passbox(**qpointsinbox[i],toprocess(processid))
 			//same for C
@@ -463,7 +420,7 @@ int main(int argc, char **argv){
 	//so, if we're searching in this box, we have to request from the neigbor process to pass the box to us.
 	// i failed to pass my awkward 3d matrices to a function, so i did this monstrocity...
 	for (int i=0;i<numboxes;i++){
-		if (ismybox(i)){
+		if (is_my_box(i)){
 			//printf("%d q points\n",ccountforboxes[i]);
 			for (int j=0;j<qcountforboxes[i];j++){
 				float qcoordtemp[3];
@@ -496,9 +453,9 @@ int main(int argc, char **argv){
 				}
 
 				for (int dir=0;dir<27;dir++){
-					int tempid=getaneigbor(dir, i);
+					int tempid=get_neighbor_id(dir, i);
 					if (tempid>-1){//if there is a neigbor and the box in question is not Q's box
-						if (ismybox(tempid)){//this is happening at a box of the same process
+						if (is_my_box(tempid)){//this is happening at a box of the same process
 							//printf("LOOKING IN THIS PROCESS");
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
 								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
