@@ -72,7 +72,7 @@ int ismybox(int id){
 }
 
 //get the id of a neigboring box. direction can be from 1 to 6, think the boxes
-//this disregards diagonally adjascent boxes. this could be changed to 14 or 26 adjascent boxes
+//this disregards diagonally adjacent boxes. this could be changed to 14 or 26 adjacent boxes
 //must be discussed
 int getneigborid(int id, int dir){
 	int boxcoords[3];
@@ -110,10 +110,10 @@ int getneigborid(int id, int dir){
 	return temp;
 }
 
-//check if given box is adjascent to a specified process's split. will be used for C. 
+//check if given box is adjacent to a specified process's split. will be used for C. 
 //there must be some smarter, more math-based way to perform this rather than brute forcing it
 //but fuck it
-void getadjascentboxesofaprocess(int pid, int *nb){	
+void getadjacentboxesofaprocess(int pid, int *nb){	
 	int count=0;
 	for (int i=0;i<numboxes;i++){	
 		if(whosebox(i)==pid) {
@@ -131,7 +131,7 @@ void getadjascentboxesofaprocess(int pid, int *nb){
 	nb[count]=-1; //shows the end of the neigbors.
 }
 
-//find if a given box is adjascent to another split, and return that split's processid
+//find if a given box is adjacent to another split, and return that split's processid
 //else (if it has no neigbor split, return -1
 int whoseneigboristhis(int thisid){
 	for (int j=1;j<7;j++){
@@ -153,6 +153,26 @@ float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
 
 void checkqpointsinbox(float **c, float **q, int clength, int qlength){
 	for (int i=0;i<qlength;i++) i++;
+}
+
+//check if given box is closer than the candidate distance of q from candidate c
+//this is done by using this generic code, that sees if a sphere intersects a cuboid.
+//returns true if it intersect, false if it doesnt.
+inline float squared(float v) { return v * v; }
+//bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
+bool doescubeintersectsphere(int boxid, float qx, float qy, float qz, float R)
+{
+    float dist_squared = R * R;
+    /* assume C1 and C2 are element-wise sorted, if not, do that now */
+    
+    //copy paste from here on
+    if (qx < C1.X) dist_squared -= squared(qx - C1.X);
+    else if (qx > C2.X) dist_squared -= squared(qx - C2.X);
+    if (qy < C1.Y) dist_squared -= squared(qy - C1.Y);
+    else if (qy > C2.Y) dist_squared -= squared(qy - C2.Y);
+    if (qz < C1.Z) dist_squared -= squared(qz - C1.Z);
+    else if (qz > C2.Z) dist_squared -= squared(qz - C2.Z);
+    return dist_squared > 0;
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
@@ -272,7 +292,8 @@ int main(int argc, char **argv){
 	splitdimensions[2]=1<<(Pprocesses/3);
 		
 	for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
-	printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
+	
+	//printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
 	
 	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
@@ -349,7 +370,7 @@ int main(int argc, char **argv){
 	int maxneigbors;
 	maxneigbors=(boxespersplit[0]*boxespersplit[1]+boxespersplit[0]*boxespersplit[2]+boxespersplit[1]*boxespersplit[2])*2;
 	int *neigbors = malloc(maxneigbors * sizeof(int));
-	getadjascentboxesofaprocess(processid, &neigbors[0]);
+	getadjacentboxesofaprocess(processid, &neigbors[0]);
 	
 	//from here on, the data passing must commence.
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
@@ -425,10 +446,10 @@ int main(int argc, char **argv){
 	
 	//NOTE THAT THE FOLLOWING ARE NOT IN ACCORDANCE TO THE EKFONISI
 	//suggestion/hack/slacking around: each process should process its boxes, meaning that it will check the Q points in its boxes
-	//however, it is a good idea that it keeps C points that are not only in its boxes, but also to the boxes adjascent to it. 
+	//however, it is a good idea that it keeps C points that are not only in its boxes, but also to the boxes adjacent to it. 
 	//like that, when it is searching at the neighbour boxes of a box at an edge, it wont have to mpi call another process to get the data back
 	//this will only be done once at the beginning.
-	//ie each process will keep and receive the Q points in its boxes, and the C points in its boxes and adjascent boxes.
+	//ie each process will keep and receive the Q points in its boxes, and the C points in its boxes and adjacent boxes.
 	//this is a hack but it will save us from a lot of mpi calls during search, which might lead to many locks that will drop performance 
 	
 	//another hack would be to completely disregard searches of nearest neigbor in different boxes outside our split
@@ -470,6 +491,5 @@ int main(int argc, char **argv){
 	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
 	//find my boxes
 	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
-	
 	
 }
