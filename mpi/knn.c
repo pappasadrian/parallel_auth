@@ -66,7 +66,7 @@ int get_box_owner(int boxid){
 }	
 
 //check if given boxid belongs to current process
-inline is_my_box(int id){
+int is_my_box(int id){
 	if (get_box_owner(id)==processid) return 1;
 	else return 0;
 }
@@ -171,7 +171,7 @@ void getadjacentboxesofaprocess(int pid, int *nb){
 */
 
 //evaluate the euclidean distance between two points
-inline euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
+float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
 	float d = sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
 	return d;
 }
@@ -180,10 +180,11 @@ inline euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
 //check if given box is closer than the candidate distance of q from candidate c
 //this is done by using this generic code, that sees if a sphere intersects a cuboid.
 //returns true if it intersect, false if it doesnt.
-inline float squared(float v) { return v * v; }
+float squared(float v) { return v * v; }
 //bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
 int does_box_intersect_sphere(int boxid, float qx, float qy, float qz, float R)
 {
+	if (boxid==-1) return 0;
 	float distancesquared = R * R;
 	/* assume C1 and C2 are element-wise sorted, if not, do that now */
 	int boxcoords[3];
@@ -424,7 +425,6 @@ int main(int argc, char **argv){
 			//printf("%d q points\n",ccountforboxes[i]);
 			for (int j=0;j<qcountforboxes[i];j++){
 				float qcoordtemp[3];
-				float ccandidate[3];
 				float cfinal[3];
 				qcoordtemp[0]=qpointsinbox[i][0][j];
 				qcoordtemp[1]=qpointsinbox[i][1][j];
@@ -451,16 +451,23 @@ int main(int argc, char **argv){
 					cfinal[1]=cpointsinbox[i][1][tempcandidate];
 					cfinal[2]=cpointsinbox[i][2][tempcandidate];
 				}
-
+				int checkedneighborcounter=0;
 				for (int dir=0;dir<27;dir++){
 					int tempid=get_neighbor_id(dir, i);
-					if (tempid>-1){//if there is a neigbor and the box in question is not Q's box
+					int shouldwecheckneighbor=0;
+					if (bestdistance<1){
+						shouldwecheckneighbor=does_box_intersect_sphere(tempid, cfinal[0], cfinal[1], cfinal[2], bestdistance);
+						//printf("%d",shouldwecheckneighbor);
+					}
+					else shouldwecheckneighbor=1;
+					if (tempid>-1&&shouldwecheckneighbor){//if there is a neigbor and the box in question is not Q's box and the box in question is within range of the sphere
+						checkedneighborcounter++;
 						if (is_my_box(tempid)){//this is happening at a box of the same process
 							//printf("LOOKING IN THIS PROCESS");
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
 								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
 								if (tempdistance<bestdistance) {
-									printf("BETTER AT NEIGBOR %d\n",dir);
+									//printf("BETTER AT NEIGBOR %d\n",dir);
 									bestdistance=tempdistance;
 									tempcandidate=cp;
 									cfinal[0]=cpointsinbox[i][0][tempcandidate];
@@ -471,11 +478,11 @@ int main(int argc, char **argv){
 						}
 						else{//must look in neigbor process
 							//lets ignore this for now
-							//printf("could have been at neigbor process\n");
+							printf("could have been at neigbor process\n");
 						}
 					}
 				}
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\nChecked %d neighbors for this result.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter);
 			}
 		//printf("\nNEXTBOX\n");
 		}
