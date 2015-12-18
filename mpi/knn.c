@@ -158,31 +158,31 @@ void checkqpointsinbox(float **c, float **q, int clength, int qlength){
 //check if given box is closer than the candidate distance of q from candidate c
 //this is done by using this generic code, that sees if a sphere intersects a cuboid.
 //returns true if it intersect, false if it doesnt.
-inline float squared(float v) { return v * v; }
+float squared(float v) { return v * v; }
 //bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
-bool doescubeintersectsphere(int boxid, float qx, float qy, float qz, float R)
+int doescubeintersectsphere(int boxid, float qx, float qy, float qz, float R)
 {
-    float distancesquared = R * R;
-    /* assume C1 and C2 are element-wise sorted, if not, do that now */
-    int boxcoords[3];
-    getboxcoords(boxid, &boxcoords[0]);
-    float xmin, xmax, ymin, ymax, zmin, zmax;
-    xmin=boxcoords[0]/boxdimensions[0];
-    xmax=(boxcoords[0]+1)/boxdimensions[0];
-    ymin=boxcoords[1]/boxdimensions[1];
-    ymax=(boxcoords[1]+1)/boxdimensions[1];
-    zmin=boxcoords[2]/boxdimensions[2];
-    zmax=(boxcoords[2]+1)/boxdimensions[2];
-    
-    //copy paste from here on
-    //lets trust the copy paste
-    if (qx < xmin) distancesquared -= squared(qx - xmin);
-    else if (qx > xmax) distancesquared -= squared(qx - xmax);
-    if (qy < ymin) distancesquared -= squared(qy - ymin);
-    else if (qy > ymax) distancesquared -= squared(qy - ymax);
-    if (qz < zmin) distancesquared -= squared(qz - zmin);
-    else if (qz > zmax) distancesquared -= squared(qz - zmax);
-    return distancesquared > 0;
+	float distancesquared = R * R;
+	/* assume C1 and C2 are element-wise sorted, if not, do that now */
+	int boxcoords[3];
+	getboxcoords(boxid, &boxcoords[0]);
+	float xmin, xmax, ymin, ymax, zmin, zmax;
+	xmin=(float)boxcoords[0]/(float)boxdimensions[0];
+	xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
+	ymin=(float)boxcoords[1]/(float)boxdimensions[1];
+	ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
+	zmin=(float)boxcoords[2]/(float)boxdimensions[2];
+	zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
+	
+	//copy paste from here on
+	//lets trust the copy paste
+	if (qx < xmin) distancesquared -= squared(qx - xmin);
+	else if (qx > xmax) distancesquared -= squared(qx - xmax);
+	if (qy < ymin) distancesquared -= squared(qy - ymin);
+	else if (qy > ymax) distancesquared -= squared(qy - ymax);
+	if (qz < zmin) distancesquared -= squared(qz - zmin);
+	else if (qz > zmax) distancesquared -= squared(qz - zmax);
+	return distancesquared > 0;
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
@@ -432,7 +432,7 @@ int main(int argc, char **argv){
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
 								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
 								if (tempdistance<bestdistance) {
-									printf("BETTERATNEIGBOR\n");
+									//printf("BETTERATNEIGBOR\n");
 									bestdistance=tempdistance;
 									tempcandidate=cp;
 									cfinal[0]=cpointsinbox[i][0][tempcandidate];
@@ -448,7 +448,7 @@ int main(int argc, char **argv){
 					}
 					
 				}	
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
+			//printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
 			}
 		//printf("\nNEXTBOX\n");
 		}
@@ -501,5 +501,49 @@ int main(int argc, char **argv){
 	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
 	//find my boxes
 	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
+	int count=0;
+	for (int i=0;i<numboxes;i++){
+		float testx=0.1;
+		float testy=0.5;
+		float testz=0.4;
+		float testdist=0.04;
+		if (findinwhichbox(testx,testy,testz)!=i){
+			if (doescubeintersectsphere(i, testx, testy, testz, testdist)){
+				int boxcoords[3];
+				getboxcoords(i, &boxcoords[0]);
+				float xmin, xmax, ymin, ymax, zmin, zmax;
+				xmin=(float)boxcoords[0]/(float)boxdimensions[0];
+				xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
+				ymin=(float)boxcoords[1]/(float)boxdimensions[1];
+				ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
+				zmin=(float)boxcoords[2]/(float)boxdimensions[2];
+				zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
+				printf("Cube %d is within search range\n",i);
+				printf("X from %f to %f\n",xmin,xmax);
+				printf("Y from %f to %f\n",ymin,ymax);
+				printf("Z from %f to %f\n\n",zmin,zmax);
+				count++;
+			}
+			
+		}
+		else{
+			int boxcoords[3];
+			getboxcoords(i, &boxcoords[0]);
+			float xmin, xmax, ymin, ymax, zmin, zmax;
+			xmin=(float)boxcoords[0]/(float)boxdimensions[0];
+			xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
+			ymin=(float)boxcoords[1]/(float)boxdimensions[1];
+			ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
+			zmin=(float)boxcoords[2]/(float)boxdimensions[2];
+			zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
+			printf("Cube %d is container of Q\n",i);
+			printf("X from %f to %f\n",xmin,xmax);
+			printf("Y from %f to %f\n",ymin,ymax);
+			printf("Z from %f to %f\n\n",zmin,zmax);
+			
+		}
+	}
+	printf("found %d neighbor boxes\n",count);
 	
 }
+
