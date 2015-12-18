@@ -17,7 +17,7 @@ int numboxes;
 int Pnumboxesperprocess;
 int numboxesperprocess;
 
-int processid=3; //for testing purposes - this should be dynamically allocated
+int processid=6; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
 void procID_2_split(int id, int *coords){
@@ -452,6 +452,7 @@ int main(int argc, char **argv){
 					cfinal[2]=cpointsinbox[i][2][tempcandidate];
 				}
 				int checkedneighborcounter=0;
+				int inneighborprocessescounter=0;
 				for (int dir=0;dir<27;dir++){
 					int tempid=get_neighbor_id(dir, i);
 					int shouldwecheckneighbor=0;
@@ -478,11 +479,12 @@ int main(int argc, char **argv){
 						}
 						else{//must look in neigbor process
 							//lets ignore this for now
-							printf("could have been at neigbor process\n");
+							inneighborprocessescounter++;
+							//printf("could have been at neigbor process\n");
 						}
 					}
 				}
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\nChecked %d neighbors for this result.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter);
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor boxes of the same process checked for this result.\n%d candidate boxes of neighbor processes should have been checked.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter,inneighborprocessescounter);
 			}
 		//printf("\nNEXTBOX\n");
 		}
