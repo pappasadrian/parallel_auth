@@ -162,17 +162,27 @@ inline float squared(float v) { return v * v; }
 //bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
 bool doescubeintersectsphere(int boxid, float qx, float qy, float qz, float R)
 {
-    float dist_squared = R * R;
+    float distancesquared = R * R;
     /* assume C1 and C2 are element-wise sorted, if not, do that now */
+    int boxcoords[3];
+    getboxcoords(boxid, &boxcoords[0]);
+    float xmin, xmax, ymin, ymax, zmin, zmax;
+    xmin=boxcoords[0]/boxdimensions[0];
+    xmax=(boxcoords[0]+1)/boxdimensions[0];
+    ymin=boxcoords[1]/boxdimensions[1];
+    ymax=(boxcoords[1]+1)/boxdimensions[1];
+    zmin=boxcoords[2]/boxdimensions[2];
+    zmax=(boxcoords[2]+1)/boxdimensions[2];
     
     //copy paste from here on
-    if (qx < C1.X) dist_squared -= squared(qx - C1.X);
-    else if (qx > C2.X) dist_squared -= squared(qx - C2.X);
-    if (qy < C1.Y) dist_squared -= squared(qy - C1.Y);
-    else if (qy > C2.Y) dist_squared -= squared(qy - C2.Y);
-    if (qz < C1.Z) dist_squared -= squared(qz - C1.Z);
-    else if (qz > C2.Z) dist_squared -= squared(qz - C2.Z);
-    return dist_squared > 0;
+    //lets trust the copy paste
+    if (qx < xmin) distancesquared -= squared(qx - xmin);
+    else if (qx > xmax) distancesquared -= squared(qx - xmax);
+    if (qy < ymin) distancesquared -= squared(qy - ymin);
+    else if (qy > ymax) distancesquared -= squared(qy - ymax);
+    if (qz < zmin) distancesquared -= squared(qz - zmin);
+    else if (qz > zmax) distancesquared -= squared(qz - zmax);
+    return distancesquared > 0;
 }
 
 //free allocated 3d memory - not used for now, might be useful in the future
