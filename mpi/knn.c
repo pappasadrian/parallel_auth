@@ -74,6 +74,8 @@ int ismybox(int id){
 //get the id of a neigboring box. direction can be from 1 to 6, think the boxes
 //this disregards diagonally adjacent boxes. this could be changed to 14 or 26 adjacent boxes
 //must be discussed
+//NEW NOTE: THIS IS OUTDATED - COMMENTING OUT
+/*
 int getneigborid(int id, int dir){
 	int boxcoords[3];
 	getboxcoords(id,&boxcoords[0]);
@@ -109,10 +111,86 @@ int getneigborid(int id, int dir){
 	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
 	return temp;
 }
+*/
+//new getneighborid, which can return any of the 26 adjacent boxes.
+int getneigborid(int id, int dirx, int diry, int dirz){
+	int boxcoords[3];
+	getboxcoords(id,&boxcoords[0]);
+	switch (dirx){
+		case 1:
+			if (boxcoords[0]<boxdimensions[0]) boxcoords[0]++;
+			else return -1;//out of bounds
+			break;
+		case 0:
+			break;
+		case -1:
+			if (boxcoords[0]>0) boxcoords[0]--;
+			else return -1;//out of bounds
+			break;
+		default://input not correct
+			return -1;
+		} 
+	switch (diry){
+		case 1:
+			if (boxcoords[1]<boxdimensions[1]) boxcoords[1]++;
+			else return -1;//out of bounds
+			break;
+		case 0:
+			break;
+		case -1:
+			if (boxcoords[1]>0) boxcoords[1]--;
+			else return -1;//out of bounds
+			break;
+		default://input not correct
+			return -1;
+		}
+	switch (dirz){
+		case 1:
+			if (boxcoords[2]<boxdimensions[2]) boxcoords[2]++;
+			else return -1;//out of bounds
+			break;
+		case 0:
+			break;
+		case -1:
+			if (boxcoords[2]>0) boxcoords[2]--;
+			else return -1;//out of bounds
+			break;
+		default://input not correct
+			return -1;
+		}
+	int temp;
+	temp=getboxid(boxcoords[0],boxcoords[1],boxcoords[2]);
+	//printf("%d ",temp);
+	return temp;
+}
+
+//helper function for using getneigborid(int id, int dirx, int diry, int dirz)
+//in for loops from 0 to 26, for checking all neigbors
+//one of the iterations of the loop will return Q's box. in that case, we return -2 for reference
+int getaneigbor(int loopnum, int boxid){
+	int x, y, z;
+	int neighbor;
+	//loopnum++;
+	x=(loopnum%3) - 1;
+	z=(loopnum/9)%3-1;
+	y=(loopnum/3)%3-1;
+	//printf("%d: %d,%d,%d\n",loopnum,x,y,z);
+	//printf("%d,%d,%d\n",x,y,z);
+	if (x==0&&y==0&&z==0){
+		return -2;
+	}
+	else{
+		neighbor=getneigborid(boxid,x,y,z);
+		return neighbor;
+	}
+}
+
 
 //check if given box is adjacent to a specified process's split. will be used for C. 
 //there must be some smarter, more math-based way to perform this rather than brute forcing it
 //but fuck it
+//this is not working and need to be checked
+/*
 void getadjacentboxesofaprocess(int pid, int *nb){	
 	int count=0;
 	for (int i=0;i<numboxes;i++){	
@@ -130,20 +208,7 @@ void getadjacentboxesofaprocess(int pid, int *nb){
 	}
 	nb[count]=-1; //shows the end of the neigbors.
 }
-
-//find if a given box is adjacent to another split, and return that split's processid
-//else (if it has no neigbor split, return -1
-int whoseneigboristhis(int thisid){
-	for (int j=1;j<7;j++){
-		int testneigbor = getneigborid(thisid,j);
-		if(testneigbor!=-1&&ismybox(testneigbor)==0) 
-		{
-			int temp = whosebox(testneigbor);
-			return temp;
-		}
-	}
-	return -1;
-}
+*/
 
 //evaluate the euclidean distance between two points
 float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
@@ -377,11 +442,12 @@ int main(int argc, char **argv){
 	}
 	
 	//find neinbors of boxes of this split, in order to keep them for C. 
+	/*
 	int maxneigbors;
 	maxneigbors=(boxespersplit[0]*boxespersplit[1]+boxespersplit[0]*boxespersplit[2]+boxespersplit[1]*boxespersplit[2])*2;
 	int *neigbors = malloc(maxneigbors * sizeof(int));
 	getadjacentboxesofaprocess(processid, &neigbors[0]);
-	
+	*/
 	//from here on, the data passing must commence.
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
 	//all processes must know which box goes to which process.
@@ -407,7 +473,7 @@ int main(int argc, char **argv){
 				qcoordtemp[1]=qpointsinbox[i][1][j];
 				qcoordtemp[2]=qpointsinbox[i][2][j];
 				
-				float bestdistance;
+				float bestdistance=-1;
 				int tempcandidate;
 				float tempdistance;
 				//printf("%d c points\n",ccountforboxes[j]);
@@ -418,17 +484,21 @@ int main(int argc, char **argv){
 						bestdistance=tempdistance;
 						tempcandidate=cp;
 					}
-					
 				}
-				cfinal[0]=cpointsinbox[i][0][tempcandidate];
-				cfinal[1]=cpointsinbox[i][1][tempcandidate];
-				cfinal[2]=cpointsinbox[i][2][tempcandidate];
-				
+				//just in case there are no C points in this box, use a very large bestdistance, so that the following searches will work
+				if (bestdistance==-1){
+					bestdistance=1;
+				}
+				else{
+					cfinal[0]=cpointsinbox[i][0][tempcandidate];
+					cfinal[1]=cpointsinbox[i][1][tempcandidate];
+					cfinal[2]=cpointsinbox[i][2][tempcandidate];
+				}
 				for (int dir=1;dir<7;dir++){
-					int tempid=getneigborid(i, dir);//new c box to search at
+					int tempid=getneigborid(i, 0,1,0);//new c box to search at
 					if (tempid!=-1){//if there is a neigbor
-						if (ismybox(tempid)){
-							//printf("LOOKINGATNEIGBOR\n");
+						if (ismybox(tempid)){//this is happening at a box of the same process
+							//printf("LOOKING IN THIS PROCESS");
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
 								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
 								if (tempdistance<bestdistance) {
@@ -446,8 +516,7 @@ int main(int argc, char **argv){
 							//printf("could have been at neigbor process\n");
 						}
 					}
-					
-				}	
+				}
 			//printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
 			}
 		//printf("\nNEXTBOX\n");
@@ -467,6 +536,8 @@ int main(int argc, char **argv){
 	//however, it will make message passing much much easier and ill use it if all else fails.
 	
 	//note that there is a shitload of messages to be passed around during point search, so this might actually be a good idea...
+	
+	
 	
 	//data tests - can be ignored
 	/*
@@ -503,6 +574,7 @@ int main(int argc, char **argv){
 	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
 	
 	//test for box with sphere intersections
+	/*
 	int count=0;
 	for (int i=0;i<numboxes;i++){
 		float testx=0.1;
@@ -550,6 +622,13 @@ int main(int argc, char **argv){
 		}
 	}
 	printf("found %d neighbor boxes\n",count);
-	
+	*/
+	for (int i=0;i<27;i++){
+		int n=0;
+		int j = getaneigbor(i, n);
+		if (j>-1){
+			printf("A neighbor of %d at direction %d is %d\n",n,i,j);
+		}
+	}
 }
 
