@@ -494,15 +494,16 @@ int main(int argc, char **argv){
 					cfinal[1]=cpointsinbox[i][1][tempcandidate];
 					cfinal[2]=cpointsinbox[i][2][tempcandidate];
 				}
-				for (int dir=1;dir<7;dir++){
-					int tempid=getneigborid(i, 0,1,0);//new c box to search at
-					if (tempid!=-1){//if there is a neigbor
+
+				for (int dir=0;dir<27;dir++){
+					int tempid=getaneigbor(dir, i);
+					if (tempid>-1){//if there is a neigbor and the box in question is not Q's box
 						if (ismybox(tempid)){//this is happening at a box of the same process
 							//printf("LOOKING IN THIS PROCESS");
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
 								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
 								if (tempdistance<bestdistance) {
-									//printf("BETTERATNEIGBOR\n");
+									printf("BETTER AT NEIGBOR %d\n",dir);
 									bestdistance=tempdistance;
 									tempcandidate=cp;
 									cfinal[0]=cpointsinbox[i][0][tempcandidate];
@@ -517,7 +518,7 @@ int main(int argc, char **argv){
 						}
 					}
 				}
-			//printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2]);
 			}
 		//printf("\nNEXTBOX\n");
 		}
@@ -623,6 +624,9 @@ int main(int argc, char **argv){
 	}
 	printf("found %d neighbor boxes\n",count);
 	*/
+	
+	//check if getneigbors works for 27
+	/*
 	for (int i=0;i<27;i++){
 		int n=0;
 		int j = getaneigbor(i, n);
@@ -630,5 +634,6 @@ int main(int argc, char **argv){
 			printf("A neighbor of %d at direction %d is %d\n",n,i,j);
 		}
 	}
+	*/
 }
 
