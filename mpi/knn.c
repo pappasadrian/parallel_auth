@@ -501,14 +501,17 @@ int main(int argc, char **argv){
 	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
 	//find my boxes
 	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
+	
+	//test for box with sphere intersections
 	int count=0;
 	for (int i=0;i<numboxes;i++){
 		float testx=0.1;
 		float testy=0.5;
 		float testz=0.4;
 		float testdist=0.04;
-		if (findinwhichbox(testx,testy,testz)!=i){
+		if (findinwhichbox(testx,testy,testz)!=i){//if this is not Q's box
 			if (doescubeintersectsphere(i, testx, testy, testz, testdist)){
+				//needed just for print purposes
 				int boxcoords[3];
 				getboxcoords(i, &boxcoords[0]);
 				float xmin, xmax, ymin, ymax, zmin, zmax;
@@ -523,10 +526,12 @@ int main(int argc, char **argv){
 				printf("Y from %f to %f\n",ymin,ymax);
 				printf("Z from %f to %f\n\n",zmin,zmax);
 				count++;
+				//needed just for print purposes
 			}
 			
 		}
-		else{
+		else{//else, we are in the same box as Q - probably do nothing
+			//needed just for print purposes
 			int boxcoords[3];
 			getboxcoords(i, &boxcoords[0]);
 			float xmin, xmax, ymin, ymax, zmin, zmax;
@@ -540,6 +545,7 @@ int main(int argc, char **argv){
 			printf("X from %f to %f\n",xmin,xmax);
 			printf("Y from %f to %f\n",ymin,ymax);
 			printf("Z from %f to %f\n\n",zmin,zmax);
+			//needed just for print purposes
 			
 		}
 	}
