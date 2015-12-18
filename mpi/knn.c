@@ -484,7 +484,7 @@ int main(int argc, char **argv){
 						}
 					}
 				}
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor boxes of the same process checked for this result.\n%d candidate boxes of neighbor processes should have been checked.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter,inneighborprocessescounter);
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
 			}
 		//printf("\nNEXTBOX\n");
 		}
