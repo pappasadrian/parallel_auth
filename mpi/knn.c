@@ -359,6 +359,7 @@ int main(int argc, char **argv){
 	//im too bored to fix it
 	float ***qgridcount; //how many points in each grid box
 	float ***cgridcount; //how many points in each grid box
+	
 	if ((qgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
 		return 1; //malloc fail	
 	if ((cgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
@@ -372,7 +373,9 @@ int main(int argc, char **argv){
 	//find where each point belongs
 	struct boxcoords *qbox = malloc(sizeof(struct boxcoords) * (numberofpoints / processes));
 	struct boxcoords *cbox = malloc(sizeof(struct boxcoords) * (numberofpoints / processes));
-	
+	//and count how many q and c points are in this split
+	int qcountinthissplit=0;
+	int ccountinthissplit=0;
 	for (int i=0;i<numberofpoints/processes;i++){
 		int idq = find_in_which_box(q[i]);
 		int idc = find_in_which_box(c[i]);
@@ -382,6 +385,8 @@ int main(int argc, char **argv){
 		//count number of points in each box
 		qgridcount[qbox[i].x][qbox[i].y][qbox[i].z]++;
 		cgridcount[cbox[i].x][cbox[i].y][cbox[i].z]++;
+		if (is_my_box(idq)) qcountinthissplit++;
+		if (is_my_box(idc)) ccountinthissplit++;
 	}
 	
 	//these will have the coordinates of each point in a specific box
@@ -438,6 +443,9 @@ int main(int argc, char **argv){
 		}
 	}
 	
+	//array to gather the results
+	struct pointcoords *results = malloc(sizeof(struct pointcoords) * (2 * qcountinthissplit));
+	int pointertoresults=0;
 	//see whose neigbor is each box of this process
 	//so, if we're searching in this box, we have to request from the neigbor process to pass the box to us.
 	// i failed to pass my awkward 3d matrices to a function, so i did this monstrocity...
@@ -499,10 +507,19 @@ int main(int argc, char **argv){
 						}
 					}
 				}
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
+			//printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
+			results[pointertoresults]=qcoordtemp;
+			results[pointertoresults+1]=cfinal;
+			pointertoresults+=2;
 			}
 		//printf("\nNEXTBOX\n");
 		}
+	}
+	
+	//independent print of results
+	//they are rounded to 3 decimal places, just for facilitating the view
+	for (int i=0;i<qcountinthissplit;i++){
+		printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
 	}
 	
 	//NOTE THAT THE FOLLOWING ARE NOT IN ACCORDANCE TO THE EKFONISI
