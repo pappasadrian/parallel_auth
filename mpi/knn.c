@@ -32,6 +32,13 @@ struct boxcoords {
    int z;
 };
 
+//structs to be passed around via mpi
+struct messagebox {
+	int numpoints;
+	int boxid;
+	struct pointcoords *point;
+};
+
 int processid=6; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
@@ -435,14 +442,26 @@ int main(int argc, char **argv){
 	//from here on, the data passing must commence.
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
 	//all processes must know which box goes to which process.
+	int numboxesnotmine=numboxes-numboxesperprocess;
+	struct messagebox *qmessage = malloc (sizeof(struct messagebox) * (numboxesnotmine));
+	struct messagebox *cmessage = malloc (sizeof(struct messagebox) * (numboxesnotmine));
+	int boxesnotminecounter=0;
 	for (int i=0;i<numboxes;i++){
 		int tempid=get_box_owner(i);
-		if (tempid!=processid){
-			//passbox(**qpointsinbox[i],toprocess(processid))
-			//same for C
+		if (!(is_my_box(tempid))){
+			qmessage[boxesnotminecounter].numpoints=10;//fix this
+			qmessage[boxesnotminecounter].boxid=2;//fixthis
+			qmessage[boxesnotminecounter].point = malloc(qmessage[boxesnotminecounter].numpoints * sizeof *qmessage[boxesnotminecounter].point);  
+			for (int i=0;i<qmessage[boxesnotminecounter].numpoints;i++){
+				qmessage[boxesnotminecounter].point[i]=q[i];//fix this
+			}
+			boxesnotminecounter++;
 		}
 	}
 	
+	
+	
+	//SEARCH PART OF THE PROGRAM
 	//array to gather the results
 	struct pointcoords *results = malloc(sizeof(struct pointcoords) * (2 * qcountinthissplit));
 	int pointertoresults=0;
@@ -519,7 +538,7 @@ int main(int argc, char **argv){
 	//independent print of results
 	//they are rounded to 3 decimal places, just for facilitating the view
 	for (int i=0;i<qcountinthissplit;i++){
-		printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
+		//printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
 	}
 	
 	//NOTE THAT THE FOLLOWING ARE NOT IN ACCORDANCE TO THE EKFONISI
@@ -633,5 +652,6 @@ int main(int argc, char **argv){
 		}
 	}
 	*/
+
 }
 
