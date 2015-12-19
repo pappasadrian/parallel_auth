@@ -395,9 +395,7 @@ int main(int argc, char **argv){
 			for (int j=0;j<cmessage[boxesnotminecounter].numpoints;j++){
 				cmessage[boxesnotminecounter].point[j]=cpointsinbox[i][j];//fix this
 			}
-			boxesnotminecounter++;
-			
-			
+			boxesnotminecounter++;	
 		}
 	}
 	
@@ -515,104 +513,6 @@ int main(int argc, char **argv){
 	//however, it will make message passing much much easier and ill use it if all else fails.
 	
 	//note that there is a shitload of messages to be passed around during point search, so this might actually be a good idea...
-	
-	
-	
-	//data tests - can be ignored
-	/*
-	int qtemp=0;
-	int qtemp2=0;
-	int ctemp=0;
-	int ctemp2=0;
-	int ct[3];
-	for (int i=0; i < numboxes; ++i){
-		getboxcoords(i, &ct[0]);
-		qtemp+=(int)qgridcount[ct[0]][ct[1]][ct[2]];
-		ctemp+=(int)cgridcount[ct[0]][ct[1]][ct[2]];
-		int tempid=getboxid(ct[0],ct[1],ct[2]);
-		qtemp2+=qcountforboxes[tempid];
-		ctemp2+=ccountforboxes[tempid];
-		printf("Box %d,%d,%d \nID: %d == %d\nQ: %d %d\nC: %d %d\n\n",ct[0]+1,ct[1]+1,ct[2]+1,tempid, i,(int)qgridcount[ct[0]][ct[1]][ct[2]],qcountforboxes[tempid],(int)cgridcount[ct[0]][ct[1]][ct[2]],ccountforboxes[tempid]);
-	}
-	printf("Qtot: %d\nCtot: %d\n",qtemp,ctemp);
-	printf("Qtot: %d\nCtot: %d\n",qtemp2,ctemp2);
-	printf("%d %d\n",numberofpoints/processes,numboxes);
-	
-	*/
-	/*see points in a certain box
-	int testbox=2000;
-	for (int i=0;i<qcountforboxes[testbox];i++){
-		printf("\nPoint %d: ",i);
-		for (int j=0;j<3;j++)
-			printf("%f,",qpointsinbox[testbox][j][i]);
-	}
-	*/
-	//which box is in each split
-	//for (int i=0;i<numboxes;i++)	printf("Box %d is in split %d\n",i,whosebox(i)+1);
-	//find my boxes
-	//for (int i=0;i<numboxes;i++)	if(ismybox(i)==1)	printf("Box %d is mine :D\n",i);
-	
-	//test for box with sphere intersections
-	/*
-	int count=0;
-	for (int i=0;i<numboxes;i++){
-		float testx=0.1;
-		float testy=0.5;
-		float testz=0.4;
-		float testdist=0.04;
-		if (findinwhichbox(testx,testy,testz)!=i){//if this is not Q's box
-			if (doescubeintersectsphere(i, testx, testy, testz, testdist)){
-				//needed just for print purposes
-				int boxcoords[3];
-				getboxcoords(i, &boxcoords[0]);
-				float xmin, xmax, ymin, ymax, zmin, zmax;
-				xmin=(float)boxcoords[0]/(float)boxdimensions[0];
-				xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
-				ymin=(float)boxcoords[1]/(float)boxdimensions[1];
-				ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
-				zmin=(float)boxcoords[2]/(float)boxdimensions[2];
-				zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
-				printf("Cube %d is within search range\n",i);
-				printf("X from %f to %f\n",xmin,xmax);
-				printf("Y from %f to %f\n",ymin,ymax);
-				printf("Z from %f to %f\n\n",zmin,zmax);
-				count++;
-				//needed just for print purposes
-			}
-			
-		}
-		else{//else, we are in the same box as Q - probably do nothing
-			//needed just for print purposes
-			int boxcoords[3];
-			getboxcoords(i, &boxcoords[0]);
-			float xmin, xmax, ymin, ymax, zmin, zmax;
-			xmin=(float)boxcoords[0]/(float)boxdimensions[0];
-			xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
-			ymin=(float)boxcoords[1]/(float)boxdimensions[1];
-			ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
-			zmin=(float)boxcoords[2]/(float)boxdimensions[2];
-			zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
-			printf("Cube %d is container of Q\n",i);
-			printf("X from %f to %f\n",xmin,xmax);
-			printf("Y from %f to %f\n",ymin,ymax);
-			printf("Z from %f to %f\n\n",zmin,zmax);
-			//needed just for print purposes
-			
-		}
-	}
-	printf("found %d neighbor boxes\n",count);
-	*/
-	
-	//check if getneigbors works for 27
-	/*
-	for (int i=0;i<27;i++){
-		int n=0;
-		int j = getaneigbor(i, n);
-		if (j>-1){
-			printf("A neighbor of %d at direction %d is %d\n",n,i,j);
-		}
-	}
-	*/
 
 }
 
