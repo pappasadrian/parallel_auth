@@ -236,58 +236,6 @@ int does_box_intersect_sphere(int boxid, struct pointcoords q, float R)
 	return distancesquared > 0;
 }
 
-//free allocated 3d memory - not used for now, might be useful in the future
-// this is copy-paste code, and it just works
-void free_3d(float ***data, size_t xlen, size_t ylen)
-{
-	size_t i, j;
-
-	for (i=0; i < xlen; ++i) {
-		if (data[i] != NULL) {
-			for (j=0; j < ylen; ++j)
-				free(data[i][j]);
-			free(data[i]);
-		}
-	}
-	free(data);
-}
-
-
-// allocate a 3d float table, with fixed dimensions (ie no different line size for each line)
-// this is copy-paste code, and it just works
-float ***alloc_3d(size_t xlen, size_t ylen, size_t zlen)
-{
-	float ***p;
-	size_t i, j;
-
-	if ((p = malloc(xlen * sizeof *p)) == NULL) {
-		perror("malloc 1");
-		return NULL;
-	}
-
-	for (i=0; i < xlen; ++i)
-		p[i] = NULL;
-
-	for (i=0; i < xlen; ++i)
-		if ((p[i] = malloc(ylen * sizeof *p[i])) == NULL) {
-			perror("malloc 2");
-			free_3d(p, xlen, ylen);
-			return NULL;
-		}
-
-	for (i=0; i < xlen; ++i)
-		for (j=0; j < ylen; ++j)
-			p[i][j] = NULL;
-
-	for (i=0; i < xlen; ++i)
-		for (j=0; j < ylen; ++j)
-			if ((p[i][j] = malloc(zlen * sizeof *p[i][j])) == NULL) {
-				perror("malloc 3");
-				free_3d(p, xlen, ylen);
-				return NULL;
-			}
-	return p;
-}
 
 //main function
 int main(int argc, char **argv){
@@ -360,22 +308,12 @@ int main(int argc, char **argv){
 	
 	//printf("grid split size: %d, %d, %d\n",boxespersplit[0],boxespersplit[1],boxespersplit[2]);
 	
-	//these could be int, but then i'd need another alloc_3d for int type - maybe ill do it later	
 	//these will keep tabs on how many points are in each grid box
-	//this could be done with box IDs and not coordinates, and it wouldnt require the 3d allocation, it was written before the convention
-	//im too bored to fix it
-	float ***qgridcount; //how many points in each grid box
-	float ***cgridcount; //how many points in each grid box
-	
-	if ((qgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
-		return 1; //malloc fail	
-	if ((cgridcount = alloc_3d((size_t)boxdimensions[0], (size_t)boxdimensions[1], (size_t)boxdimensions[2])) == NULL) 
-		return 1; //malloc fail
-	for (int i=0; i < boxdimensions[0]; ++i)
-		for (int j=0; j < boxdimensions[1]; ++j)
-			for (int k=0; k < boxdimensions[2]; ++k){
-				qgridcount[i][j][k]=cgridcount[i][j][k]=0;
-			}
+	int *qgridcount=malloc(numboxes*sizeof(int)); //how many points in each grid box
+	int *cgridcount=malloc(numboxes*sizeof(int)); //how many points in each grid box
+	for (int i=0;i<numboxes;i++){
+		qgridcount[i]=cgridcount[i]=0;
+	}
 			
 	//find where each point belongs
 	struct boxcoords *qbox = malloc(sizeof(struct boxcoords) * (numberofpoints / processes));
@@ -390,8 +328,8 @@ int main(int argc, char **argv){
 		cbox[i]=get_box_coords(idc);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		//count number of points in each box
-		qgridcount[qbox[i].x][qbox[i].y][qbox[i].z]++;
-		cgridcount[cbox[i].x][cbox[i].y][cbox[i].z]++;
+		qgridcount[idq]++;
+		cgridcount[idc]++;
 		if (is_my_box(idq)) qcountinthissplit++;
 		if (is_my_box(idc)) ccountinthissplit++;
 	}
@@ -406,11 +344,11 @@ int main(int argc, char **argv){
 		coord=get_box_coords(i);
 		//printf("\ndef id = %d \n%d,%d,%d\n",i,coord[0],coord[1],coord[2]);
 		//if( getboxid(coord[0],coord[1],coord[2]) != i) printf("MATHERRORHERE");
-		if ((qpointsinbox[i] = malloc(qgridcount[coord.x][coord.y][coord.z] * sizeof *qpointsinbox[i])) == NULL) {
+		if ((qpointsinbox[i] = malloc(qgridcount[i] * sizeof *qpointsinbox[i])) == NULL) {
 			perror("malloc 3");
 			return 1;
 		}
-		if ((cpointsinbox[i] = malloc(cgridcount[coord.x][coord.y][coord.z] * sizeof *cpointsinbox[i])) == NULL) {
+		if ((cpointsinbox[i] = malloc(cgridcount[i] * sizeof *cpointsinbox[i])) == NULL) {
 			perror("malloc 3");
 			return 1;
 		}
@@ -432,16 +370,12 @@ int main(int argc, char **argv){
 		//if (ccountforboxes[ctempid]>cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]) printf("mathfuckup2\n");
 	}
 	
-	//find neinbors of boxes of this split, in order to keep them for C. 
-	/*
-	int maxneigbors;
-	maxneigbors=(boxespersplit[0]*boxespersplit[1]+boxespersplit[0]*boxespersplit[2]+boxespersplit[1]*boxespersplit[2])*2;
-	int *neigbors = malloc(maxneigbors * sizeof(int));
-	getadjacentboxesofaprocess(processid, &neigbors[0]);
-	*/
+	
 	//from here on, the data passing must commence.
 	//each process will keep the boxes that it owns, and pass the other ones to the respective processes.
 	//all processes must know which box goes to which process.
+	
+	//here, we create the message structs, each containing a box to be sent to another process.
 	int numboxesnotmine=numboxes-numboxesperprocess;
 	struct messagebox *qmessage = malloc (sizeof(struct messagebox) * (numboxesnotmine));
 	struct messagebox *cmessage = malloc (sizeof(struct messagebox) * (numboxesnotmine));
@@ -449,16 +383,43 @@ int main(int argc, char **argv){
 	for (int i=0;i<numboxes;i++){
 		int tempid=get_box_owner(i);
 		if (!(is_my_box(tempid))){
-			qmessage[boxesnotminecounter].numpoints=10;//fix this
-			qmessage[boxesnotminecounter].boxid=2;//fixthis
+			qmessage[boxesnotminecounter].numpoints=qgridcount[i];
+			qmessage[boxesnotminecounter].boxid=i;
 			qmessage[boxesnotminecounter].point = malloc(qmessage[boxesnotminecounter].numpoints * sizeof *qmessage[boxesnotminecounter].point);  
-			for (int i=0;i<qmessage[boxesnotminecounter].numpoints;i++){
-				qmessage[boxesnotminecounter].point[i]=q[i];//fix this
+			for (int j=0;j<qmessage[boxesnotminecounter].numpoints;j++){
+				qmessage[boxesnotminecounter].point[j]=qpointsinbox[i][j];//fix this
+			}
+			cmessage[boxesnotminecounter].numpoints=cgridcount[i];
+			cmessage[boxesnotminecounter].boxid=i;
+			cmessage[boxesnotminecounter].point = malloc(cmessage[boxesnotminecounter].numpoints * sizeof *cmessage[boxesnotminecounter].point);  
+			for (int j=0;j<cmessage[boxesnotminecounter].numpoints;j++){
+				cmessage[boxesnotminecounter].point[j]=cpointsinbox[i][j];//fix this
 			}
 			boxesnotminecounter++;
+			
+			
 		}
 	}
 	
+	//prepare an array of box structs to be sent to a specific process
+	//mpi should send the two 1d arrays qmessagetoprocess and cmessagetoprocess
+	//to the processidtosendto process.
+	int processidtosendto=4;//this should be chosen dynamically somehow
+	struct messagebox *qmessagetoprocess = malloc (sizeof(struct messagebox) * (numboxesperprocess));
+	struct messagebox *cmessagetoprocess = malloc (sizeof(struct messagebox) * (numboxesperprocess));
+	int ccounterformessagetoprocess=0;
+	int qcounterformessagetoprocess=0;
+	for (int i=0;i<numboxesnotmine;i++){
+		if(get_box_owner(qmessage[i].boxid)==processidtosendto){
+			qmessagetoprocess[qcounterformessagetoprocess]=qmessage[i];
+			qcounterformessagetoprocess++;
+		}
+		if(get_box_owner(cmessage[i].boxid)==processidtosendto){
+			cmessagetoprocess[ccounterformessagetoprocess]=cmessage[i];
+			ccounterformessagetoprocess++;
+		}
+	}
+
 	
 	
 	//SEARCH PART OF THE PROGRAM
@@ -526,7 +487,7 @@ int main(int argc, char **argv){
 						}
 					}
 				}
-			//printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
 			results[pointertoresults]=qcoordtemp;
 			results[pointertoresults+1]=cfinal;
 			pointertoresults+=2;
