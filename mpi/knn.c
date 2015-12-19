@@ -17,51 +17,72 @@ int numboxes;
 int Pnumboxesperprocess;
 int numboxesperprocess;
 
+//struct for point coordinates
+struct pointcoords {
+   float x;
+   float y;
+   float z;
+};
+
+//struct for box coordinates
+//can be used for splits too
+struct boxcoords {
+   int x;
+   int y;
+   int z;
+};
+
 int processid=6; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
-void procID_2_split(int id, int *coords){
-	coords[0]=id%splitdimensions[0];
-	coords[1]=(id/splitdimensions[0])%splitdimensions[1];
-	coords[2]=((id/splitdimensions[0])/splitdimensions[1])%splitdimensions[2];
+struct boxcoords procID_2_split(int id){
+	struct boxcoords coords;
+	coords.x=id%splitdimensions[0];
+	coords.y=(id/splitdimensions[0])%splitdimensions[1];
+	coords.z=((id/splitdimensions[0])/splitdimensions[1])%splitdimensions[2];
+	return coords;
 }
 
 //get process id from split coordinates
-int split_2_procID(int x, int y, int z){
-	int i= x+y*(splitdimensions[0])+z*splitdimensions[0]*splitdimensions[1];
+int split_2_procID(struct boxcoords a){
+	int i= a.x+a.y*(splitdimensions[0])+a.z*splitdimensions[0]*splitdimensions[1];
 	return i;
 }
 
 //get box coordinates from box id
-void get_box_coords(int id, int *coords){
-	coords[0]=id%boxdimensions[0];
-	coords[1]=(id/boxdimensions[0])%boxdimensions[1];
-	coords[2]=((id/boxdimensions[0])/boxdimensions[1])%boxdimensions[2];
+struct boxcoords get_box_coords(int id){
+	struct boxcoords out;
+	out.x=id%boxdimensions[0];
+	out.y=(id/boxdimensions[0])%boxdimensions[1];
+	out.z=((id/boxdimensions[0])/boxdimensions[1])%boxdimensions[2];
+	return out;
 }
 
 //get box id from coordinates
-int get_box_id(int x, int y, int z){
-	int i= x+y*(boxdimensions[0])+z*boxdimensions[0]*boxdimensions[1];
+int get_box_id(struct boxcoords box){
+	int i= box.x+box.y*(boxdimensions[0])+box.z*boxdimensions[0]*boxdimensions[1];
 	return i;
 }
 
 //find in which grid box the point at the given coordinates is at. returns box id
-int find_in_which_box(float x,float y,float z){ 
-	int ret[3];
-	ret[0] = (int)(x*boxdimensions[0]); //rounds down to the nearest int
-	ret[1] = (int)(y*boxdimensions[1]);
-	ret[2] = (int)(z*boxdimensions[2]);
-	return get_box_id(ret[0],ret[1],ret[2]);
+int find_in_which_box(struct pointcoords a){ 
+	struct boxcoords box;
+	box.x = (int)(a.x*boxdimensions[0]); //rounds down to the nearest int
+	box.y = (int)(a.y*boxdimensions[1]);
+	box.z = (int)(a.z*boxdimensions[2]);
+	return get_box_id(box);
 }
 
 //find which process's is the given box (by id)
 int get_box_owner(int boxid){
-	int boxcoords[3];
-	get_box_coords(boxid,&boxcoords[0]);
-	int splitcoords[3];
-	for (int i=0;i<3;i++) splitcoords[i]=boxcoords[i]/boxespersplit[i];
+	struct boxcoords boxc;
+	boxc=get_box_coords(boxid);
+	struct boxcoords splitcoords;
+	splitcoords.x=boxc.x/boxespersplit[0];
+	splitcoords.y=boxc.y/boxespersplit[1];
+	splitcoords.z=boxc.z/boxespersplit[2];
 	int pro;
-	pro = split_2_procID(splitcoords[0],splitcoords[1],splitcoords[2]);
+	pro = split_2_procID(splitcoords);
 	return pro;
 }	
 
@@ -74,17 +95,17 @@ int is_my_box(int id){
 
 //new getneighborid, which can return any of the 26 adjacent boxes.
 int get_neighbor_boxID_coords(int id, int dirx, int diry, int dirz){
-	int boxcoords[3];
-	get_box_coords(id,&boxcoords[0]);
+	struct boxcoords boxc;
+	boxc=get_box_coords(id);
 	switch (dirx){
 		case 1:
-			if (boxcoords[0]<boxdimensions[0]) boxcoords[0]++;
+			if (boxc.x<boxdimensions[0]) boxc.x++;
 			else return -1;//out of bounds
 			break;
 		case 0:
 			break;
 		case -1:
-			if (boxcoords[0]>0) boxcoords[0]--;
+			if (boxc.x>0) boxc.x--;
 			else return -1;//out of bounds
 			break;
 		default://input not correct
@@ -92,13 +113,13 @@ int get_neighbor_boxID_coords(int id, int dirx, int diry, int dirz){
 		} 
 	switch (diry){
 		case 1:
-			if (boxcoords[1]<boxdimensions[1]) boxcoords[1]++;
+			if (boxc.y<boxdimensions[1]) boxc.y++;
 			else return -1;//out of bounds
 			break;
 		case 0:
 			break;
 		case -1:
-			if (boxcoords[1]>0) boxcoords[1]--;
+			if (boxc.y>0) boxc.y--;
 			else return -1;//out of bounds
 			break;
 		default://input not correct
@@ -106,20 +127,20 @@ int get_neighbor_boxID_coords(int id, int dirx, int diry, int dirz){
 		}
 	switch (dirz){
 		case 1:
-			if (boxcoords[2]<boxdimensions[2]) boxcoords[2]++;
+			if (boxc.z<boxdimensions[2])boxc.z++;
 			else return -1;//out of bounds
 			break;
 		case 0:
 			break;
 		case -1:
-			if (boxcoords[2]>0) boxcoords[2]--;
+			if (boxc.z>0) boxc.z--;
 			else return -1;//out of bounds
 			break;
 		default://input not correct
 			return -1;
 		}
 	int temp;
-	temp=get_box_id(boxcoords[0],boxcoords[1],boxcoords[2]);
+	temp=get_box_id(boxc);
 	//printf("%d ",temp);
 	return temp;
 }
@@ -171,8 +192,8 @@ void getadjacentboxesofaprocess(int pid, int *nb){
 */
 
 //evaluate the euclidean distance between two points
-float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
-	float d = sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1));
+float euclidean(struct pointcoords a, struct pointcoords b){
+	float d = sqrtf((b.x-a.x)*(b.x-a.x)+(b.y-a.y)*(b.y-a.y)+(b.z-a.z)*(b.z-a.z));
 	return d;
 }
 
@@ -182,29 +203,29 @@ float euclidean(float x1,float y1,float z1,float x2,float y2,float z2){
 //returns true if it intersect, false if it doesnt.
 float squared(float v) { return v * v; }
 //bool doescubeintersectsphere(vec3 C1, vec3 C2, vec3 S, float R)
-int does_box_intersect_sphere(int boxid, float qx, float qy, float qz, float R)
+int does_box_intersect_sphere(int boxid, struct pointcoords q, float R)
 {
 	if (boxid==-1) return 0;
 	float distancesquared = R * R;
 	/* assume C1 and C2 are element-wise sorted, if not, do that now */
-	int boxcoords[3];
-	get_box_coords(boxid, &boxcoords[0]);
+	struct boxcoords boxc;
+	boxc=get_box_coords(boxid);
 	float xmin, xmax, ymin, ymax, zmin, zmax;
-	xmin=(float)boxcoords[0]/(float)boxdimensions[0];
-	xmax=(float)(boxcoords[0]+1)/(float)boxdimensions[0];
-	ymin=(float)boxcoords[1]/(float)boxdimensions[1];
-	ymax=(float)(boxcoords[1]+1)/(float)boxdimensions[1];
-	zmin=(float)boxcoords[2]/(float)boxdimensions[2];
-	zmax=(float)(boxcoords[2]+1)/(float)boxdimensions[2];
+	xmin=(float)boxc.x/(float)boxdimensions[0];
+	xmax=(float)(boxc.x+1)/(float)boxdimensions[0];
+	ymin=(float)boxc.y/(float)boxdimensions[1];
+	ymax=(float)(boxc.y+1)/(float)boxdimensions[1];
+	zmin=(float)boxc.z/(float)boxdimensions[2];
+	zmax=(float)(boxc.z+1)/(float)boxdimensions[2];
 	
 	//copy paste from here on
 	//lets trust the copy paste
-	if (qx < xmin) distancesquared -= squared(qx - xmin);
-	else if (qx > xmax) distancesquared -= squared(qx - xmax);
-	if (qy < ymin) distancesquared -= squared(qy - ymin);
-	else if (qy > ymax) distancesquared -= squared(qy - ymax);
-	if (qz < zmin) distancesquared -= squared(qz - zmin);
-	else if (qz > zmax) distancesquared -= squared(qz - zmax);
+	if (q.x < xmin) distancesquared -= squared(q.x - xmin);
+	else if (q.x > xmax) distancesquared -= squared(q.x - xmax);
+	if (q.y < ymin) distancesquared -= squared(q.y - ymin);
+	else if (q.y > ymax) distancesquared -= squared(q.y - ymax);
+	if (q.z < zmin) distancesquared -= squared(q.z - zmin);
+	else if (q.z > zmax) distancesquared -= squared(q.z - zmax);
 	return distancesquared > 0;
 }
 
@@ -284,12 +305,16 @@ int main(int argc, char **argv){
 	numboxesperprocess=1<<Pnumboxesperprocess;
 	
 	// coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
-	float *q = malloc(sizeof(float) * (3 * numberofpoints / processes)); //numberofpoints/processes, because the points are spread through the active processes
-	float *c = malloc(sizeof(float) * (3 * numberofpoints / processes));
+	struct pointcoords *q = malloc(sizeof(struct pointcoords) * (numberofpoints / processes)); //numberofpoints/processes, because the points are spread through the active processes
+	struct pointcoords *c = malloc(sizeof(struct pointcoords) * (numberofpoints / processes));
 	
-	for (int i=0;i<numberofpoints*3/processes;i++){
-		q[i]=(float)rand() / RAND_MAX; //random value from 0 to 1
-		c[i]=(float)rand() / RAND_MAX;
+	for (int i=0;i<numberofpoints/processes;i++){
+		q[i].x=(float)rand() / RAND_MAX; //random value from 0 to 1
+		q[i].y=(float)rand() / RAND_MAX;
+		q[i].z=(float)rand() / RAND_MAX;
+		c[i].x=(float)rand() / RAND_MAX;
+		c[i].y=(float)rand() / RAND_MAX;
+		c[i].z=(float)rand() / RAND_MAX;
 	}
 	
 	/*for (int i = 0; i < numberofpoints/processes; i++) {
@@ -345,39 +370,37 @@ int main(int argc, char **argv){
 			}
 			
 	//find where each point belongs
-	int *qbox = malloc(sizeof(int) * (3 * numberofpoints / processes));
-	int *cbox = malloc(sizeof(int) * (3 * numberofpoints / processes));
+	struct boxcoords *qbox = malloc(sizeof(struct boxcoords) * (numberofpoints / processes));
+	struct boxcoords *cbox = malloc(sizeof(struct boxcoords) * (numberofpoints / processes));
 	
 	for (int i=0;i<numberofpoints/processes;i++){
-		int idq = find_in_which_box(q[3*i],q[3*i+1],q[3*i+2]);
-		int idc = find_in_which_box(c[3*i],c[3*i+1],c[3*i+2]);
-		get_box_coords(idq, &qbox[3*i]);
-		get_box_coords(idc, &cbox[3*i]);
+		int idq = find_in_which_box(q[i]);
+		int idc = find_in_which_box(c[i]);
+		qbox[i]=get_box_coords(idq);
+		cbox[i]=get_box_coords(idc);
 		//printf("Point %d is at grid box: %d, %d, %d\n",i+1, qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
 		//count number of points in each box
-		qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]++;
-		cgridcount[cbox[3*i]][cbox[3*i+1]][cbox[3*i+2]]++;
+		qgridcount[qbox[i].x][qbox[i].y][qbox[i].z]++;
+		cgridcount[cbox[i].x][cbox[i].y][cbox[i].z]++;
 	}
 	
 	//these will have the coordinates of each point in a specific box
-	float *qpointsinbox[numboxes][3];
-	float *cpointsinbox[numboxes][3];
+	struct pointcoords *qpointsinbox[numboxes];
+	struct pointcoords *cpointsinbox[numboxes];
 	
 	for (int i=0; i < numboxes; ++i){
 		//get box number, coordinates from boxid. boxid=i
-		int coord[3];
-		get_box_coords(i, &coord[0]);
+		struct boxcoords coord;
+		coord=get_box_coords(i);
 		//printf("\ndef id = %d \n%d,%d,%d\n",i,coord[0],coord[1],coord[2]);
 		//if( getboxid(coord[0],coord[1],coord[2]) != i) printf("MATHERRORHERE");
-		for (int j=0; j < 3; ++j){
-			if ((qpointsinbox[i][j] = malloc(qgridcount[coord[0]][coord[1]][coord[2]] * sizeof *qpointsinbox[i][j])) == NULL) {
-				perror("malloc 3");
-				return 1;
-			}
-			if ((cpointsinbox[i][j] = malloc(cgridcount[coord[0]][coord[1]][coord[2]] * sizeof *cpointsinbox[i][j])) == NULL) {
-				perror("malloc 3");
-				return 1;
-			}
+		if ((qpointsinbox[i] = malloc(qgridcount[coord.x][coord.y][coord.z] * sizeof *qpointsinbox[i])) == NULL) {
+			perror("malloc 3");
+			return 1;
+		}
+		if ((cpointsinbox[i] = malloc(cgridcount[coord.x][coord.y][coord.z] * sizeof *cpointsinbox[i])) == NULL) {
+			perror("malloc 3");
+			return 1;
 		}
 	}
 	
@@ -387,12 +410,10 @@ int main(int argc, char **argv){
 	for (int i=0;i<numboxes;i++) {qcountforboxes[i]=0; ccountforboxes[i]=0; }//init with 0s
 	
 	for (int i=0;i<numberofpoints/processes;i++){//for each point in this process
-		int qtempid=get_box_id(qbox[3*i],qbox[3*i+1],qbox[3*i+2]);
-		int ctempid=get_box_id(cbox[3*i],cbox[3*i+1],cbox[3*i+2]);
-		for (int j=0;j<3;j++){
-			qpointsinbox[qtempid][j][qcountforboxes[qtempid]]=q[3*i+j];
-			cpointsinbox[ctempid][j][ccountforboxes[ctempid]]=c[3*i+j];	
-		}
+		int qtempid=get_box_id(qbox[i]);
+		int ctempid=get_box_id(cbox[i]);
+		qpointsinbox[qtempid][qcountforboxes[qtempid]]=q[i];
+		cpointsinbox[ctempid][ccountforboxes[ctempid]]=c[i];
 		qcountforboxes[qtempid]++;
 		ccountforboxes[ctempid]++;
 		//if (qcountforboxes[qtempid]>qgridcount[qbox[3*i]][qbox[3*i+1]][qbox[3*i+2]]) printf("mathfuckup\n");
@@ -424,18 +445,16 @@ int main(int argc, char **argv){
 		if (is_my_box(i)){
 			//printf("%d q points\n",ccountforboxes[i]);
 			for (int j=0;j<qcountforboxes[i];j++){
-				float qcoordtemp[3];
-				float cfinal[3];
-				qcoordtemp[0]=qpointsinbox[i][0][j];
-				qcoordtemp[1]=qpointsinbox[i][1][j];
-				qcoordtemp[2]=qpointsinbox[i][2][j];
+				struct pointcoords qcoordtemp;
+				struct pointcoords cfinal;
+				qcoordtemp=qpointsinbox[i][j];
 				
 				float bestdistance=-1;
 				int tempcandidate;
 				float tempdistance;
 				//printf("%d c points\n",ccountforboxes[j]);
 				for (int cp=0;cp<ccountforboxes[j];cp++){
-					tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[i][0][cp],cpointsinbox[i][1][cp],cpointsinbox[i][2][cp]);
+					tempdistance = euclidean(qcoordtemp,cpointsinbox[i][cp]);
 					if (tempdistance<bestdistance||cp==0) {
 						//printf("-|-");
 						bestdistance=tempdistance;
@@ -447,9 +466,7 @@ int main(int argc, char **argv){
 					bestdistance=1;
 				}
 				else{
-					cfinal[0]=cpointsinbox[i][0][tempcandidate];
-					cfinal[1]=cpointsinbox[i][1][tempcandidate];
-					cfinal[2]=cpointsinbox[i][2][tempcandidate];
+					cfinal=cpointsinbox[i][tempcandidate];
 				}
 				int checkedneighborcounter=0;
 				int inneighborprocessescounter=0;
@@ -457,7 +474,7 @@ int main(int argc, char **argv){
 					int tempid=get_neighbor_id(dir, i);
 					int shouldwecheckneighbor=0;
 					if (bestdistance<1){
-						shouldwecheckneighbor=does_box_intersect_sphere(tempid, cfinal[0], cfinal[1], cfinal[2], bestdistance);
+						shouldwecheckneighbor=does_box_intersect_sphere(tempid, cfinal, bestdistance);
 						//printf("%d",shouldwecheckneighbor);
 					}
 					else shouldwecheckneighbor=1;
@@ -466,14 +483,12 @@ int main(int argc, char **argv){
 						if (is_my_box(tempid)){//this is happening at a box of the same process
 							//printf("LOOKING IN THIS PROCESS");
 							for (int cp=0;cp<ccountforboxes[tempid];cp++){
-								tempdistance = euclidean(qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cpointsinbox[tempid][0][cp],cpointsinbox[tempid][1][cp],cpointsinbox[tempid][2][cp]);
+								tempdistance = euclidean(qcoordtemp,cpointsinbox[tempid][cp]);
 								if (tempdistance<bestdistance) {
 									//printf("BETTER AT NEIGBOR %d\n",dir);
 									bestdistance=tempdistance;
 									tempcandidate=cp;
-									cfinal[0]=cpointsinbox[i][0][tempcandidate];
-									cfinal[1]=cpointsinbox[i][1][tempcandidate];
-									cfinal[2]=cpointsinbox[i][2][tempcandidate];
+									cfinal=cpointsinbox[i][tempcandidate];
 								}
 							}
 						}
@@ -484,7 +499,7 @@ int main(int argc, char **argv){
 						}
 					}
 				}
-			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp[0],qcoordtemp[1],qcoordtemp[2],cfinal[0],cfinal[1],cfinal[2],checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
+			printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
 			}
 		//printf("\nNEXTBOX\n");
 		}
