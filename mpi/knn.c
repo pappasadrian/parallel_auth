@@ -3,6 +3,12 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
+
+
+
+
+int processid=6; //for testing purposes - this should be dynamically allocated
 
 //global variables
 int boxdimensions[3];
@@ -38,8 +44,6 @@ struct messagebox {
 	int boxid;
 	struct pointcoords *point;
 };
-
-int processid=6; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
 struct boxcoords procID_2_split(int id){
@@ -402,39 +406,63 @@ int main(int argc, char **argv){
 	//prepare an array of box structs to be sent to a specific process
 	//mpi should send the two 1d arrays qmessagetoprocess and cmessagetoprocess
 	//to the processidtosendto process.
-	int processidtosendto=4;//this should be chosen dynamically somehow
 	struct messagebox *qmessagetoprocess = malloc (sizeof(struct messagebox) * (numboxesperprocess));
 	struct messagebox *cmessagetoprocess = malloc (sizeof(struct messagebox) * (numboxesperprocess));
-	int ccounterformessagetoprocess=0;
-	int qcounterformessagetoprocess=0;
-	for (int i=0;i<numboxesnotmine;i++){
-		if(get_box_owner(qmessage[i].boxid)==processidtosendto){
-			qmessagetoprocess[qcounterformessagetoprocess]=qmessage[i];
-			qcounterformessagetoprocess++;
-		}
-		if(get_box_owner(cmessage[i].boxid)==processidtosendto){
-			cmessagetoprocess[ccounterformessagetoprocess]=cmessage[i];
-			ccounterformessagetoprocess++;
+	
+	for (int processidtosendto=0;processidtosendto<processes;processidtosendto++){//must change the order of this to something smarter...
+		int ccounterformessagetoprocess=0;
+		int qcounterformessagetoprocess=0;
+		if (processidtosendto!=processid){
+			for (int i=0;i<numboxesnotmine;i++){
+				if(get_box_owner(qmessage[i].boxid)==processidtosendto){
+					qmessagetoprocess[qcounterformessagetoprocess]=qmessage[i];
+					qcounterformessagetoprocess++;
+				}
+				if(get_box_owner(cmessage[i].boxid)==processidtosendto){
+					cmessagetoprocess[ccounterformessagetoprocess]=cmessage[i];
+					ccounterformessagetoprocess++;
+				}
+			}
+			//send the motherfucker at this point
 		}
 	}
+	free(qmessagetoprocess);
+	free(cmessagetoprocess);
 	
 	//receive an array of box structs
 	//temporarily use the qmessagetoprocess table from above
-	receiveddata=1;
+	//UNTESTED CODE HERE
+	//I MUST FIND A WAY TO WRITE SOME TESTS OVER HERE
+	//ALSO, this is throwing segfaults, thus it is commented out for now...
+	/*
+	int receiveddata=1;
 	if(receiveddata){//do this when we receive an array of data
-		for (int i=0;i<numboxesperprocess;i++){
-			qmessagetoprocess[i];
-			cmessagetoprocess[i];
-			qcountforboxes[qmessagetoprocess[i].boxid]+=qmessagetoprocess[i].numboxes;
-			//realloc qpointsinbox[qmessagetoprocess[i].boxid];
+		struct messagebox qmessagereceive[numboxesperprocess];
+		struct messagebox cmessagereceive[numboxesperprocess];
+		for (int i=0;i<numboxesperprocess;i++){//for each box in the split that we have received
+			
+			
+			//test data here - this should be the received data
+			qmessagereceive[i]=qmessage[i];
+			cmessagereceive[i]=cmessage[i];
+			
+			
+			qcountforboxes[qmessagereceive[i].boxid]+=qmessagereceive[i].numpoints;
+			//realloc qpointsinbox[qmessagereceive[i].boxid]
+			qpointsinbox[qmessagereceive[i].boxid] = realloc (qpointsinbox[qmessagereceive[i].boxid], qcountforboxes[qmessagereceive[i].boxid] * sizeof *qpointsinbox[i]);
 			//concatenate qpointsinbox with qcountforboxes[i].pointcoords
-			ccountforboxes[cmessagetoprocess[i].boxid]+=cmessagetoprocess[i].numboxes;
-			//realloc cpointsinbox[cmessagetoprocess[i].boxid];
+			memcpy(qpointsinbox[qmessagereceive[i].boxid] + qmessagereceive[i].numpoints , qmessagereceive[i].point , qmessagereceive[i].numpoints * sizeof(struct pointcoords));
+			
+			ccountforboxes[cmessagereceive[i].boxid]+=cmessagereceive[i].numpoints;
+			//realloc cpointsinbox[cmessagereceive[i].boxid];
+			cpointsinbox[cmessagereceive[i].boxid] = realloc (cpointsinbox[qmessagereceive[i].boxid], ccountforboxes[cmessagereceive[i].boxid] * sizeof *cpointsinbox[i]);
 			//concatenate cpointsinbox with ccountforboxes[i].pointcoords
+			memcpy(cpointsinbox[cmessagereceive[i].boxid] + cmessagereceive[i].numpoints , cmessagereceive[i].point , cmessagereceive[i].numpoints * sizeof(struct pointcoords));
 		}
+			
 	}
-	
-	/* USE THIS FOR CONCATENATION OF ARRAYS - TEST CODE
+	*/
+	/* USE THIS FOR CONCATENATION OF ARRAYS - TEST CODE - taken from stackoverflow  
 	float x[4] = { 1, 1, 1, 1 };
 	float y[4] = { 2, 2, 2, 2 };
 
