@@ -417,7 +417,33 @@ int main(int argc, char **argv){
 			ccounterformessagetoprocess++;
 		}
 	}
+	
+	//receive an array of box structs
+	//temporarily use the qmessagetoprocess table from above
+	receiveddata=1;
+	if(receiveddata){//do this when we receive an array of data
+		for (int i=0;i<numboxesperprocess;i++){
+			qmessagetoprocess[i];
+			cmessagetoprocess[i];
+			qcountforboxes[qmessagetoprocess[i].boxid]+=qmessagetoprocess[i].numboxes;
+			//realloc qpointsinbox[qmessagetoprocess[i].boxid];
+			//concatenate qpointsinbox with qcountforboxes[i].pointcoords
+			ccountforboxes[cmessagetoprocess[i].boxid]+=cmessagetoprocess[i].numboxes;
+			//realloc cpointsinbox[cmessagetoprocess[i].boxid];
+			//concatenate cpointsinbox with ccountforboxes[i].pointcoords
+		}
+	}
+	
+	/* USE THIS FOR CONCATENATION OF ARRAYS - TEST CODE
+	float x[4] = { 1, 1, 1, 1 };
+	float y[4] = { 2, 2, 2, 2 };
 
+	float* total = malloc(8 * sizeof(float)); // array to hold the result
+
+	memcpy(total,     x, 4 * sizeof(float)); // copy 4 floats from x to total[0]...total[3]
+	memcpy(total + 4, y, 4 * sizeof(float)); // copy 4 floats from y to total[4]...total[7]
+	
+	*/
 	
 	
 	//SEARCH PART OF THE PROGRAM
