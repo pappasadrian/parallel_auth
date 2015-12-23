@@ -13,8 +13,11 @@ int splitdimensions[3];
 int boxespersplit[3];
 int Pprocesses;
 int processes;
-int Pnumberofpoints;
-int numberofpoints;
+//different amount of qpoints and cpoints
+int PQnumberofpoints;
+int qnumberofpoints;
+int PCnumberofpoints;
+int cnumberofpoints;
 int Pnumberboxes;
 int numboxes;
 int Pnumboxesperprocess;
@@ -257,9 +260,10 @@ int main(int argc, char **argv){
   using std::vector;
   using std::cout;
   using std::endl;
-  if (argc != 4) {
-      printf("Usage: %s Q P B\n",argv[0]);
-      printf("Q: number of points (power of two - from 20 to 25)\n");
+  if (argc != 5) {
+      printf("Usage: %s Q C P B\n",argv[0]);
+      printf("Q: number of Q points (power of two - from 20 to 25)\n");
+      printf("C: number of C points (power of two - from 20 to 25)\n");
       printf("P: number of processes (power of two - from 0 to 7)\n");
       printf("B: number of boxes (power of two - from 12 to 16)\n");
       return 1;
@@ -267,19 +271,21 @@ int main(int argc, char **argv){
 
   srand (time(NULL));  //such randomness wow
 
-  Pprocesses=atoi(argv[2]); //from 0 to 7
+  Pprocesses=atoi(argv[3]); //from 0 to 7
   processes=1<<Pprocesses;
-  Pnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes points.
-  numberofpoints=1<<Pnumberofpoints;
-  Pnumberboxes=atoi(argv[3]); //from 12 to 16
+  PQnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes Q points.
+  qnumberofpoints=1<<PQnumberofpoints;
+  PCnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes C points.
+  cnumberofpoints=1<<PCnumberofpoints;
+  Pnumberboxes=atoi(argv[4]); //from 12 to 16
   numboxes=1<<Pnumberboxes;
   Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process, aka splits
   numboxesperprocess=1<<Pnumboxesperprocess;
 
   // coordinates will be in here. data example: {x1, y1, z1, x2, y2, z2, ...}
   //numberofpoints/processes, because the points are spread through the active processes
-  int pts_per_process=(numberofpoints / processes);
-
+  int q_pts_per_process=(qnumberofpoints / processes);
+  int c_pts_per_process=(cnumberofpoints / processes);
   //This will simulate our box grid, creating 2^pnumberboxes boxes.
   //Each boxdimension shows how many boxes are on each dimension of our cube.
   //n<=m<=k is kept.
@@ -296,12 +302,15 @@ int main(int argc, char **argv){
   splitdimensions[1]=1<<(Pprocesses/3);
   if (Pprocesses%3 == 2)	splitdimensions[1]*=2; //double the boxes in this row if mod3 is 2
   splitdimensions[2]=1<<(Pprocesses/3);
-
   for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
+  
+  
   vector<Box<Point> > c_boxes;
   vector<Box<QPoint> > q_boxes;
   q_boxes.resize(numboxes);
   c_boxes.resize(numboxes);
+  
+  //initialize q_boxes and c_boxes
   for (uint i=0;i<q_boxes.size();i++){
       q_boxes[i].id=i;
       q_boxes[i].coords=get_box_coords(i);
@@ -313,13 +322,16 @@ int main(int argc, char **argv){
       c_boxes[i].owner=get_box_owner(i);
     };
 
-  for (int i=0;i<pts_per_process;i++){
+//generate q points
+  for (int i=0;i<q_pts_per_process;i++){
       QPoint qtemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
       q_boxes[find_in_which_box(qtemp)].point_cloud.push_back(qtemp);
+    }
+//generate c points    
+  for (int i=0;i<c_pts_per_process;i++){
       Point ctemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
       c_boxes[find_in_which_box(ctemp)].point_cloud.push_back(ctemp);
     }
-
 
   for (uint i=0; i<q_boxes.size();i++)
     {
@@ -330,7 +342,7 @@ int main(int argc, char **argv){
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++)
             {
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
-              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
             }
         }
     }
@@ -393,8 +405,8 @@ std::vector<Point> naive_search(Point q, std::vector<Point> search_space){
 //                }
 //              else shouldwecheckneighbor=1;
 //              if (tempid>-1&&shouldwecheckneighbor){//if there is a neigbor and the box in question is not Q's box and the box in question is within range of the sphere
-//                  checkedneighborcounter++;
 //                  if (is_my_box(tempid)){//this is happening at a box of the same process
+//                  checkedneighborcounter++;
 //                      //printf("LOOKING IN THIS PROCESS");
 //                      for (int cp=0;cp<ccountforboxes[tempid];cp++){
 //                          tempdistance = euclidean(qcoordtemp,cpointsinbox[tempid][cp]);
