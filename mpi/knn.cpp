@@ -6,7 +6,7 @@
 #include <vector>
 #include <string.h>
 #include <iostream>
-
+int processid=6; //for testing purposes - this should be dynamically allocated
 //global variables
 int boxdimensions[3];
 int splitdimensions[3];
@@ -53,7 +53,7 @@ QPoint::QPoint(float x, float y, float z) : Point( x,  y,  z)
   found_nn=false;
 }
 
-std::vector<Point> naive_search(Point q, std::vector<Point> search_space);
+std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space);
 
 //struct for box coordinates
 //can be used for splits too
@@ -79,8 +79,6 @@ struct messagebox {
   std::vector<Point> point_cloud;
   messagebox(){};
 };
-
-int processid=6; //for testing purposes - this should be dynamically allocated
 
 //get split coordinates from process id
 struct boxcoords procID_2_split(int id){
@@ -266,7 +264,6 @@ int main(int argc, char **argv){
     }
 
   srand (time(NULL));  //such randomness wow
-
   Pprocesses=atoi(argv[2]); //from 0 to 7
   processes=1<<Pprocesses;
   Pnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes points.
@@ -321,23 +318,42 @@ int main(int argc, char **argv){
     }
 
 
-  for (uint i=0; i<q_boxes.size();i++)
-    {
-      if (!q_boxes[i].point_cloud.empty() )
-        {
-          vector<Point> tentative_nn;
-          vector<Point> final_nn;
-          for (uint j=0;j<q_boxes[i].point_cloud.size();j++)
-            {
+
+  for (uint i=0; i<q_boxes.size();i++){
+      if (!q_boxes[i].point_cloud.empty() ){
+          for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+              vector<Point> tentative_nn;
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
               //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              if (!tentative_nn.empty()){
+                  float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                  for (int dir=0;dir<27;dir++){
+                      int temp_id=get_neighbor_id(dir, i);
+                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                      if (temp_id>-1 && should_we_check_neighbors ){
+                          if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
+                              cout<<"LOOKING IN THE PROCESS"<<endl;
+                              vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+                              float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+                              if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                                  tentative_nn=temp;
+                                  cur_dist=d_temp;
+                                  cout<<"Found better in neighbor "<<dir<<endl;
+                                }
+                            }
+                          else{
+                              //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
+                              //neighbor_proc_count++;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-
-std::vector<Point> naive_search(Point q, std::vector<Point> search_space){
+std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
   using std::vector;
   using std::cout;
   using std::endl;
@@ -364,64 +380,6 @@ std::vector<Point> naive_search(Point q, std::vector<Point> search_space){
   return nn;
 }
 
-//      for (int j=0;j<qcountforboxes[i];j++){
-//          struct Point qcoordtemp;
-//          struct Point cfinal;
-//          qcoordtemp=qpointsinbox[i][j];
-
-//          float bestdistance=-1;
-//          int tempcandidate;
-//          float tempdistance;
-//          //printf("%d c points\n",ccountforboxes[j]);
-
-//          //just in case there are no C points in this box, use a very large
-//          //bestdistance, so that the following searches will work
-//          if (bestdistance==-1){
-//              bestdistance=1;
-//            }
-//          else{
-//              cfinal=cpointsinbox[i][tempcandidate];
-//            }
-//          int checkedneighborcounter=0;
-//          int inneighborprocessescounter=0;
-//          for (int dir=0;dir<27;dir++){
-//              int tempid=get_neighbor_id(dir, i);
-//              int shouldwecheckneighbor=0;
-//              if (bestdistance<1){
-//                  shouldwecheckneighbor=does_box_intersect_sphere(tempid, cfinal, bestdistance);
-//                  //printf("%d",shouldwecheckneighbor);
-//                }
-//              else shouldwecheckneighbor=1;
-//              if (tempid>-1&&shouldwecheckneighbor){//if there is a neigbor and the box in question is not Q's box and the box in question is within range of the sphere
-//                  checkedneighborcounter++;
-//                  if (is_my_box(tempid)){//this is happening at a box of the same process
-//                      //printf("LOOKING IN THIS PROCESS");
-//                      for (int cp=0;cp<ccountforboxes[tempid];cp++){
-//                          tempdistance = euclidean(qcoordtemp,cpointsinbox[tempid][cp]);
-//                          if (tempdistance<bestdistance) {
-//                              //printf("BETTER AT NEIGBOR %d\n",dir);
-//                              bestdistance=tempdistance;
-//                              tempcandidate=cp;
-//                              cfinal=cpointsinbox[i][tempcandidate];
-//                            }
-//                        }
-//                    }
-//                  else{//must look in neigbor process
-//                      //lets ignore this for now
-//                      inneighborprocessescounter++;
-//                      //printf("could have been at neigbor process\n");
-//                    }
-//                }
-//            }
-//          printf("Point Q at coords %f,%f,%f is nearest to point C at coords %f,%f,%f\n%d neighbor box%s of the same process checked for this result.\n%d candidate box%s of neighbor processes should have been checked.\n\n",qcoordtemp.x,qcoordtemp.y,qcoordtemp.z,cfinal.x,cfinal.y,cfinal.z,checkedneighborcounter,(checkedneighborcounter!=1)?"es":"",inneighborprocessescounter,(inneighborprocessescounter!=1)?"es":"");
-//          results[pointertoresults]=qcoordtemp;
-//          results[pointertoresults+1]=cfinal;
-//          pointertoresults+=2;
-//        }
-//      //printf("\nNEXTBOX\n");
-//      i++;
-//    }
-//}
 
 ////independent print of results
 ////they are rounded to 3 decimal places, just for facilitating the view
