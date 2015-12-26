@@ -12,7 +12,7 @@
   using std::endl;
   
   
-int processid=6; //for testing purposes - this should be dynamically allocated
+int processid=0; //for testing purposes - this should be dynamically allocated
 //global variables
 int boxdimensions[3];
 int splitdimensions[3];
@@ -363,6 +363,7 @@ for (int pro=0;pro<processes;pro++){
   //for each Q box
   for (uint i=0; i<q_boxes.size();i++){
       // if this box is not empty of Q points, and it belongs to me
+      //cout<<"Searching box "<<i<<"\n";
       if (!q_boxes[i].point_cloud.empty() && is_my_box(q_boxes[i].id)){
           //for each Q point in this box
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
@@ -389,13 +390,13 @@ for (int pro=0;pro<processes;pro++){
                           if (is_my_box(temp_id)){
                               //we only have this info for C boxes in this process
                               if (!c_boxes[temp_id].point_cloud.empty()){
-		                      cout<<"Looking in neighbor "<<temp_id<<endl;
+		                      //cout<<"Looking in neighbor "<<temp_id<<endl;
 		                      vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
 		                      float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
 		                      if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
 		                          tentative_nn=temp;
 		                          cur_dist=d_temp;
-		                          cout<<"Found better C in neighbor "<<temp_id<<" at direction "<<dir<<endl;
+		                          //cout<<"Found better C in neighbor "<<temp_id<<" at direction "<<dir<<endl;
 		                        }
                                 }
                             }
