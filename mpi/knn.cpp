@@ -341,6 +341,25 @@ int main(int argc, char **argv){
     
 //data passing should happen here
 
+//make Q box for passing around
+//same exactly for C (copy paste or something
+for (int pro=0;pro<processes;pro++){
+	if (pro!=processid){
+		vector<Box<QPoint> > sendout;
+		int sendcount=0;
+		for (uint i=0;i<q_boxes.size();i++){
+			if(get_box_owner(q_boxes[i].id==pro)){
+				//ADD THIS BOX TO THE VECTOR TO BE SENT
+				//IM GUESSING SOMETHING LIKE
+				sendout[sendcount]=q_boxes[i];
+				sendcount++;
+			}
+		}
+		//here, we must send the sendout to the neighbor
+	}
+}
+
+//POINT SEARCH
   //for each Q box
   for (uint i=0; i<q_boxes.size();i++){
       // if this box is not empty of Q points, and it belongs to me
@@ -353,7 +372,7 @@ int main(int argc, char **argv){
               
               //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
               
-              //ANTONI!! IS THIS NECESSARY? WHAT IF WE DONT FIND A POSSIBLE POINT IN THIS BOX BUT THERE IS ONE IN THE NEIGHBORS?
+              //ANTONI!! IS THIS NECESSARY? WHAT IF WE DONT FIND A POSSIBLE C POINT IN THIS BOX BUT THERE IS ONE IN THE NEIGHBORS?
               if (!tentative_nn.empty()){
               
                   float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
