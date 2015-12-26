@@ -6,6 +6,12 @@
 #include <vector>
 #include <string.h>
 #include <iostream>
+
+  using std::vector;
+  using std::cout;
+  using std::endl;
+  
+  
 int processid=6; //for testing purposes - this should be dynamically allocated
 //global variables
 int boxdimensions[3];
@@ -221,6 +227,11 @@ float euclidean(struct Point a, struct Point b){
   return d;
 }
 
+//simple printout of a point. just for testing reasons
+void printcoords (struct Point point){
+  cout<<"("<<point.x<<", "<<point.y<<", "<<point.z<<")";
+}
+
 
 //check if given box is closer than the candidate distance of q from candidate c
 //this is done by using this generic code, that sees if a sphere intersects a cuboid.
@@ -255,9 +266,7 @@ int does_box_intersect_sphere(int boxid, struct Point q, float R)
 
 //main function
 int main(int argc, char **argv){
-  using std::vector;
-  using std::cout;
-  using std::endl;
+
   if (argc != 5) {
       printf("Usage: %s Q C P B\n",argv[0]);
       printf("Q: number of Q points (power of two - from 20 to 25)\n");
@@ -329,36 +338,66 @@ int main(int argc, char **argv){
       Point ctemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
       c_boxes[find_in_which_box(ctemp)].point_cloud.push_back(ctemp);
     }
+    
+//data passing should happen here
 
+  //for each Q box
   for (uint i=0; i<q_boxes.size();i++){
-      if (!q_boxes[i].point_cloud.empty() ){
+      // if this box is not empty of Q points, and it belongs to me
+      if (!q_boxes[i].point_cloud.empty() && is_my_box(q_boxes[i].id)){
+          //for each Q point in this box
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+              //cout<<"=========\nNext Point:\n";
               vector<Point> tentative_nn;
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+              
               //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              
+              //ANTONI!! IS THIS NECESSARY? WHAT IF WE DONT FIND A POSSIBLE POINT IN THIS BOX BUT THERE IS ONE IN THE NEIGHBORS?
               if (!tentative_nn.empty()){
+              
                   float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                  
+                  //for each possible direction on all sides of the box (26)
                   for (int dir=0;dir<27;dir++){
                       int temp_id=get_neighbor_id(dir, i);
                       bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
-                      if (temp_id>-1 && should_we_check_neighbors ){
-                          if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
-                              cout<<"LOOKING IN THE PROCESS"<<endl;
-                              vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
-                              float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-                              if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
-                                  tentative_nn=temp;
-                                  cur_dist=d_temp;
-                                  cout<<"Found better in neighbor "<<dir<<endl;
+                      //check neighbor if a box exists in that direction
+                      //and if there is some point in searching there
+                      //else, dont check it/ignore it
+                      if (temp_id>-1 && should_we_check_neighbors){
+                      	  //if that box belongs to this process
+                          if (is_my_box(temp_id)){
+                              //we only have this info for C boxes in this process
+                              if (!c_boxes[temp_id].point_cloud.empty()){
+		                      cout<<"Looking in neighbor "<<temp_id<<endl;
+		                      vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+		                      float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+		                      if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+		                          tentative_nn=temp;
+		                          cur_dist=d_temp;
+		                          cout<<"Found better C in neighbor "<<temp_id<<" at direction "<<dir<<endl;
+		                        }
                                 }
                             }
+                          //else, if C is not my box, but belongs to a neighbor
                           else{
-                              //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
+                              //make contact with temp_id neighbor box of neighbor process
+                              //we must search in that box
+                              //cout<<temp_id<<" belongs to another process. IMPLEMENT THIS!"<<endl;
                               //neighbor_proc_count++;
+                              //neighbor receives the comm and must do the search. this has not been implemented either
                             }
                         }
                     }
                 }
+                /* testing of evaluation
+                cout<<"Point Q ";
+                printcoords(q_boxes[i].point_cloud[j]);
+                cout<<" closest to \nPoint C ";
+                printcoords(tentative_nn[0]);
+                cout<<"\n=========\n\n";
+                */
             }
         }
     }
