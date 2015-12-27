@@ -311,77 +311,162 @@ int main(int argc, char **argv){
   for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
   
   
-  vector<Box<Point> > c_boxes;
-  vector<Box<QPoint> > q_boxes;
-  q_boxes.resize(numboxes);
-  c_boxes.resize(numboxes);
+  vector<Box<Point> > c_generated_boxes;
+  vector<Box<QPoint> > q_generated_boxes;
+  q_generated_boxes.resize(numboxes);
+  c_generated_boxes.resize(numboxes);
   
-  //initialize q_boxes and c_boxes
-  for (uint i=0;i<q_boxes.size();i++){
-      q_boxes[i].id=i;
-      q_boxes[i].coords=get_box_coords(i);
-      q_boxes[i].owner=get_box_owner(i);
+  //initialize q_generated_boxes and c_generated_boxes
+  for (uint i=0;i<q_generated_boxes.size();i++){
+      q_generated_boxes[i].id=i;
+      q_generated_boxes[i].coords=get_box_coords(i);
+      q_generated_boxes[i].owner=get_box_owner(i);
     };
-  for (uint i=0;i<c_boxes.size();i++){
-      c_boxes[i].id=i;
-      c_boxes[i].coords=get_box_coords(i);
-      c_boxes[i].owner=get_box_owner(i);
+  for (uint i=0;i<c_generated_boxes.size();i++){
+      c_generated_boxes[i].id=i;
+      c_generated_boxes[i].coords=get_box_coords(i);
+      c_generated_boxes[i].owner=get_box_owner(i);
     };
 
 //generate q points
   for (int i=0;i<q_pts_per_process;i++){
       QPoint qtemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
-      q_boxes[find_in_which_box(qtemp)].point_cloud.push_back(qtemp);
+      q_generated_boxes[find_in_which_box(qtemp)].point_cloud.push_back(qtemp);
     }
 //generate c points    
   for (int i=0;i<c_pts_per_process;i++){
       Point ctemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
-      c_boxes[find_in_which_box(ctemp)].point_cloud.push_back(ctemp);
+      c_generated_boxes[find_in_which_box(ctemp)].point_cloud.push_back(ctemp);
     }
     
-//data passing should happen here
 
 //make Q box for passing around
 //same exactly for C (copy paste or something
+//meanwhile, keep this process's boxes in a new vector, so that we can potentially free q_generated_boxes and c_generated_boxes
+vector<Box<Point> > c_my_boxes;
+vector<Box<QPoint> > q_my_boxes;
+c_my_boxes.resize(numboxesperprocess);
+q_my_boxes.resize(numboxesperprocess);
+vector<Box<QPoint> > *q_sendout = new vector<Box<QPoint> >[processes];//this can be defined here temporarily
+vector<Box<Point> > *c_sendout = new vector<Box<Point> >[processes];//this can be defined here temporarily
 for (int pro=0;pro<processes;pro++){
 	if (pro!=processid){
-		vector<Box<QPoint> > sendout;
+		c_sendout[pro].resize(numboxes);
+		q_sendout[pro].resize(numboxes);
+		//or have an outer, permanent array which will be kept 
 		int sendcount=0;
-		for (uint i=0;i<q_boxes.size();i++){
-			if(get_box_owner(q_boxes[i].id==pro)){
+		for (uint i=0;i<q_generated_boxes.size();i++){
+			if(get_box_owner(q_generated_boxes[i].id==pro)){
 				//ADD THIS BOX TO THE VECTOR TO BE SENT
 				//IM GUESSING SOMETHING LIKE
-				sendout[sendcount]=q_boxes[i];
+				q_sendout[sendcount][pro] = q_generated_boxes[i];
 				sendcount++;
 			}
 		}
-		//here, we must send the sendout to the neighbor
+		sendcount=0;
+		for (uint i=0;i<c_generated_boxes.size();i++){
+			if(get_box_owner(c_generated_boxes[i].id==pro)){
+				c_sendout[sendcount][pro] = c_generated_boxes[i];
+				sendcount++;
+			}
+		}
+		//here, we must send the sendout to the neighbor if we use the temp sendout
+		//else, we keep the data and create an alternative scheme
+	}
+	else{
+		//keep boxes of this process in the new vectors
+		int keepcount=0;
+		for (uint i=0;i<q_generated_boxes.size();i++){
+			if(get_box_owner(q_generated_boxes[i].id==pro)){
+				q_my_boxes[keepcount]=q_generated_boxes[i];
+				keepcount++;
+			}
+		}
+		keepcount=0;
+		for (uint i=0;i<c_generated_boxes.size();i++){
+			if(get_box_owner(c_generated_boxes[i].id==pro)){
+				c_my_boxes[keepcount]=c_generated_boxes[i];
+				keepcount++;
+			}
+		}
 	}
 }
+/*
+if (processes>1){ //communication only makes sense if there is more than one process
+//=====
+//Ring Communication Scheme starts here
+for (int i=0;i<processes/2;i++){
+	//Phase 1, even send, odd receive
+	if (processid%2){
+		//send a packet to the next process
+		int toprocess=(processid+1)%processes; //makes sure the last process sends to process 0
+		//packetsend(q_sendout[toprocess], toprocess); //implement this, blocking send
+		//packetsend(c_sendout[toprocess], toprocess); //implement this, blocking send
+	}
+	else{
+		//receive a packet from the previous process
+		int receivingfrom=(processid-1)%processes;
+		vector<Box<QPoint> > q_received;
+		//q_received=qpacketreceive(); //blocking receive
+		vector<Box<Point> > c_received;
+		//c_received=cpacketreceive(); //blocking receive
+		//must see what is in that packet, unpack packet and integrate data to our own
+		//push each point of q_received and c_received into c_my_boxes and q_my_boxes respectively
+	}
 
+	//all processes must sync here
+	//waitforsync();
+
+	//Phase 2, odd send, even receive
+	if (!(processid%2)){
+		//send a packet to the next process
+		int toprocess=(processid+1)%processes; //makes sure the last process sends to process 0
+		//packetsend(q_sendout[toprocess], toprocess); //implement this, blocking send
+		//packetsend(c_sendout[toprocess], toprocess); //implement this, blocking send
+	}
+	else{
+		//receive a packet from the previous process
+		int receivingfrom=(processid-1)%processes;
+		vector<Box<QPoint> > q_received;
+		//q_received=qpacketreceive(); //blocking receive
+		vector<Box<Point> > c_received;
+		//c_received=cpacketreceive(); //blocking receive
+		//must see what is in that packet, unpack packet and integrate data to our own
+		//push each point of q_received and c_received into c_my_boxes and q_my_boxes respectively
+	}
+
+	//all processes must sync here
+	//waitforsync();
+}
+
+//Ring Communication Scheme stops here
+//=====
+}
+*/
+cout<<"Searching box "<<q_my_boxes.size();
 //POINT SEARCH
   //for each Q box
-  for (uint i=0; i<q_boxes.size();i++){
+  for (uint i=0; i<q_my_boxes.size();i++){
       // if this box is not empty of Q points, and it belongs to me
-      //cout<<"Searching box "<<i<<"\n";
-      if (!q_boxes[i].point_cloud.empty() && is_my_box(q_boxes[i].id)){
+      cout<<"Searching box "<<i<<"\n";
+      if (!q_my_boxes[i].point_cloud.empty() && is_my_box(q_my_boxes[i].id)){
           //for each Q point in this box
-          for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
-              //cout<<"=========\nNext Point:\n";
+          for (uint j=0;j<q_my_boxes[i].point_cloud.size();j++){
+              cout<<"=========\nNext Point:\n";
               vector<Point> tentative_nn;
-              tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+              tentative_nn=naive_search(q_my_boxes[i].point_cloud[j],c_my_boxes[i].point_cloud);
               
-              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_my_boxes[i].point_cloud[j])<<endl;
               
               //ANTONI!! IS THIS NECESSARY? WHAT IF WE DONT FIND A POSSIBLE C POINT IN THIS BOX BUT THERE IS ONE IN THE NEIGHBORS?
               if (!tentative_nn.empty()){
               
-                  float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                  float cur_dist=euclidean(tentative_nn[0],q_my_boxes[i].point_cloud[j]);
                   
                   //for each possible direction on all sides of the box (26)
                   for (int dir=0;dir<27;dir++){
                       int temp_id=get_neighbor_id(dir, i);
-                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_my_boxes[i].point_cloud[j],cur_dist);
                       //check neighbor if a box exists in that direction
                       //and if there is some point in searching there
                       //else, dont check it/ignore it
@@ -389,11 +474,11 @@ for (int pro=0;pro<processes;pro++){
                       	  //if that box belongs to this process
                           if (is_my_box(temp_id)){
                               //we only have this info for C boxes in this process
-                              if (!c_boxes[temp_id].point_cloud.empty()){
+                              if (!c_my_boxes[temp_id].point_cloud.empty()){
 		                      //cout<<"Looking in neighbor "<<temp_id<<endl;
-		                      vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
-		                      float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-		                      if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+		                      vector<Point> temp=naive_search(q_my_boxes[i].point_cloud[j],c_my_boxes[temp_id].point_cloud);
+		                      float d_temp=euclidean(q_my_boxes[i].point_cloud[j],temp[0]);
+		                      if (d_temp<euclidean(q_my_boxes[i].point_cloud[j],tentative_nn[0]) ){
 		                          tentative_nn=temp;
 		                          cur_dist=d_temp;
 		                          //cout<<"Found better C in neighbor "<<temp_id<<" at direction "<<dir<<endl;
@@ -411,18 +496,16 @@ for (int pro=0;pro<processes;pro++){
                         }
                     }
                 }
-                /* testing of evaluation
+                /* testing of evaluation*/
                 cout<<"Point Q ";
-                printcoords(q_boxes[i].point_cloud[j]);
+                printcoords(q_my_boxes[i].point_cloud[j]);
                 cout<<" closest to \nPoint C ";
                 printcoords(tentative_nn[0]);
                 cout<<"\n=========\n\n";
-                */
             }
         }
     }
 }
-
 std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
   using std::vector;
   using std::cout;
