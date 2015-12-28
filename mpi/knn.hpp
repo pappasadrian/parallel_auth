@@ -324,7 +324,7 @@ void prepare_scatterv_msg(const std::vector<std::vector<Point> >& proc_array,
           sendbuf.push_back(proc_array[i][j].z);
 //          if (i==1)cout<<std::setprecision(4)<<proc_array[0][j].x<<" "<<proc_array[0][j].y<<" "<<proc_array[0][j].z<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
           cout<<setprecision(3);
-          cout<<i<<","<<j<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
+//          cout<<i<<","<<j<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
         }
       count[i]=3*proc_array[i].size();
       if (i) displ[i]=displ[i-1]+count[i-1];

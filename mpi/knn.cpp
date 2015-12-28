@@ -115,8 +115,8 @@ int main(int argc, char **argv){
   //  if (rank){
   cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
   cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
-    for (int i=0;i<q_count[rank];i+=3)
-      cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
+  for (int i=0;i<q_count[rank];i+=3)
+    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
 
 
 
@@ -148,13 +148,15 @@ int main(int argc, char **argv){
       QPoint temp=QPoint(q_recvbuf[i],q_recvbuf[i+1],q_recvbuf[i+2]);
       q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
     }
-
+  MPI_Barrier(MPI_COMM_WORLD);
+  vector<float> rslts_sendbuf;
   for (uint i=0; i<q_boxes.size();i++){
+      cout<<rank<<": in loop "<<i<<endl;
       if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
               vector<Point> tentative_nn;
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
-              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
               if (!tentative_nn.empty()){
                   float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
                   for (int dir=0;dir<27;dir++){
@@ -178,11 +180,54 @@ int main(int argc, char **argv){
                         }
                     }
                 }
+              rslts_sendbuf.push_back(q_boxes[i].point_cloud[j].x);
+              rslts_sendbuf.push_back(q_boxes[i].point_cloud[j].y);
+              rslts_sendbuf.push_back(q_boxes[i].point_cloud[j].z);
+              rslts_sendbuf.push_back(tentative_nn[0].x);
+              rslts_sendbuf.push_back(tentative_nn[0].y);
+              rslts_sendbuf.push_back(tentative_nn[0].z);
             }
+          cout<<rank<<" i:"<<rslts_sendbuf.size()<<endl;
         }
     }
+    vector<float> rslts_recvbuf;
+    vector<int> rslts_cnt;
+    vector<int> rslts_displs;
 
+    if (rank==0){
+        rslts_recvbuf.reserve(6*qnumberofpoints);
+        rslts_cnt.reserve(qnumberofpoints);
+        for (int i=0;i<processes;i++) rslts_cnt[i]=2*q_count[i];
+        rslts_displs.reserve(qnumberofpoints);
+        rslts_displs[0]=0;
+        for (int i=0;i<processes;i++){
+            rslts_displs[i]=rslts_cnt[i-1]+rslts_displs[i-1];
+            cout<<rslts_displs[i]<<endl;
+          }
+        cout<<"B4 gathering"<<endl;
+      }
 
+    if (rank==0){
+        cout<<"sendbuf stats"<<endl;
+        cout<<rslts_sendbuf[0] <<endl;
+        cout<<rslts_sendbuf.size()<<endl;
+      }
+    MPI_Gatherv(&rslts_sendbuf[0],(int)rslts_sendbuf.size(),MPI_FLOAT,
+                &rslts_recvbuf[0],&rslts_cnt[0],&rslts_displs[0],MPI_FLOAT,0,
+                MPI_COMM_WORLD);
+    cout<<"done gathering"<<endl;
+
+    if (rank==0){
+        cout<<"Gathered: "<<rslts_recvbuf[0]<<" "<<rslts_recvbuf[1]<<endl;
+        vector<QPoint> results;
+        results.reserve(qnumberofpoints);
+        int j=0;
+        for (int i=0;i<6*qnumberofpoints;i+=6){
+            results[j]=QPoint(rslts_recvbuf[i],rslts_recvbuf[i+1],rslts_recvbuf[i+2]);
+            results[j].nn=Point(rslts_recvbuf[i+3],rslts_recvbuf[i+4],rslts_recvbuf[i+5]);
+          }
+        //SEARCH VALIDATION GOES HERE!
+      }
   MPI_Finalize();
 }
 
