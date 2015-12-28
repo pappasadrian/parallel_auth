@@ -1,6 +1,8 @@
 #include "knn.hpp"
+#include <mpi/mpi.h>
 
 int main(int argc, char **argv){
+  MPI_Init(&argc,&argv);
   using std::vector;
   using std::cout;
   using std::endl;
@@ -12,14 +14,32 @@ int main(int argc, char **argv){
       cout<<"B: number of boxes (power of two - from 12 to 16)\n";
       return 1;
     }
+  MPI_Comm_size(MPI_COMM_WORLD,&processes);
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  char processor_name[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+  MPI_Get_processor_name(processor_name, &name_len);
+  printf("Hello world from processor %s, rank %d"
+         " out of %d processors\n",
+         processor_name, rank, processes);
 
-  srand (time(NULL));  //such randomness wow
-  Pprocesses=atoi(argv[3]); //from 0 to 7
-  processes=1<<Pprocesses;
-  PQnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes Q points.
+  Pprocesses=atoi(argv[3]);
+  int my_proc_num=1<<Pprocesses;
+  if (my_proc_num!=processes){
+      cout<<"ERROR: Inconsistent process numbers. Exiting";
+      cout<<my_proc_num<<"!="<<processes;
+      MPI_Abort(MPI_COMM_WORLD,1);
+      exit(123);
+    }
+
+  // from 0(?) to 25 -in all processes. this process has numberofpoints/processes Q points.
+  PQnumberofpoints=atoi(argv[1]);
   qnumberofpoints=1<<PQnumberofpoints;
-  PCnumberofpoints=atoi(argv[1]); // from 0(?) to 25 -in all processes. this process has numberofpoints/processes C points.
+  cout<<"Qnum="<<qnumberofpoints<<endl;
+  // from 0(?) to 25 -in all processes. this process has numberofpoints/processes C points.
+  PCnumberofpoints=atoi(argv[2]);
   cnumberofpoints=1<<PCnumberofpoints;
+  cout<<"cnum="<<cnumberofpoints<<endl;
   Pnumberboxes=atoi(argv[4]); //from 12 to 16
   numboxes=1<<Pnumberboxes;
   Pnumboxesperprocess=Pnumberboxes-Pprocesses; //2^x number of grid boxes per process, aka splits
@@ -32,82 +52,198 @@ int main(int argc, char **argv){
   //This will simulate our box grid, creating 2^pnumberboxes boxes.
   //Each boxdimension shows how many boxes are on each dimension of our cube.
   //n<=m<=k is kept.
-  //generally, we can refer to these boxes either by ID or by coordinates. there are functions that do this.
+  //generally, we can refer to these boxes either by ID or by coordinates. there
+  //are functions that do this.
   boxdimensions[0]=1<<(Pnumberboxes/3);
-  if (Pnumberboxes%3 > 0)	boxdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
+  if (Pnumberboxes%3 > 0)  boxdimensions[0]*=2;
   boxdimensions[1]=1<<(Pnumberboxes/3);
-  if (Pnumberboxes%3 == 2)	boxdimensions[1]*=2; //double the boxes in this row if mod3 is 2
+  if (Pnumberboxes%3 == 2)	boxdimensions[1]*=2;
   boxdimensions[2]=1<<(Pnumberboxes/3);
 
-  //same idea, but with splits. each split contains many boxes and belongs to a process
   splitdimensions[0]=1<<(Pprocesses/3);
-  if (Pprocesses%3 > 0)	splitdimensions[0]*=2; //double the boxes in this row if mod3 is 1 or 2
+  if (Pprocesses%3 > 0)	splitdimensions[0]*=2;
   splitdimensions[1]=1<<(Pprocesses/3);
-  if (Pprocesses%3 == 2)	splitdimensions[1]*=2; //double the boxes in this row if mod3 is 2
+  if (Pprocesses%3 == 2)	splitdimensions[1]*=2;
   splitdimensions[2]=1<<(Pprocesses/3);
   for(int i=0;i<3;i++) boxespersplit[i]=boxdimensions[i]/splitdimensions[i];
 
+  vector<Point> c_points;
+  vector<vector<Point> >  c_pts_in_proc;
+  vector<float> c_sendbuff;
+  vector<int> c_count,c_displ;
+  vector<float> c_recvbuf;
+  c_recvbuf.reserve(4*c_pts_per_process);
+  c_count.reserve(processes);
+  if (rank==0){
 
-  vector<Box<Point> > c_boxes;
-  vector<Box<QPoint> > q_boxes;
-  q_boxes.resize(numboxes);
-  c_boxes.resize(numboxes);
-
-  //initialize q_boxes and c_boxes
-  for (uint i=0;i<q_boxes.size();i++){
-      q_boxes[i].id=i;
-      q_boxes[i].coords=get_box_coords(i);
-      q_boxes[i].owner=get_box_owner(i);
-    };
-  for (uint i=0;i<c_boxes.size();i++){
-      c_boxes[i].id=i;
-      c_boxes[i].coords=get_box_coords(i);
-      c_boxes[i].owner=get_box_owner(i);
-    };
-
-//generate q points
-  for (int i=0;i<q_pts_per_process;i++){
-      QPoint qtemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
-      q_boxes[find_in_which_box(qtemp)].point_cloud.push_back(qtemp);
-    }
-//generate c points
-  for (int i=0;i<c_pts_per_process;i++){
-      Point ctemp((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX);
-      c_boxes[find_in_which_box(ctemp)].point_cloud.push_back(ctemp);
-    }
-
-  for (uint i=0; i<q_boxes.size();i++){
-      if (!q_boxes[i].point_cloud.empty() ){
-          for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
-              vector<Point> tentative_nn;
-              tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
-              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
-              if (!tentative_nn.empty()){
-                  float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
-                  for (int dir=0;dir<27;dir++){
-                      int temp_id=get_neighbor_id(dir, i);
-                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
-                      if (temp_id>-1 && should_we_check_neighbors ){
-                          if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
-                              cout<<"LOOKING IN THE PROCESS"<<endl;
-                              vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
-                              float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-                              if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
-                                  tentative_nn=temp;
-                                  cur_dist=d_temp;
-                                  cout<<"Found better in neighbor "<<dir<<endl;
-                                }
-                            }
-                          else{
-                              //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
-                              //neighbor_proc_count++;
-                            }
-                        }
-                    }
-                }
-            }
+      for (int i=0;i<cnumberofpoints;i++){
+          c_points.push_back(
+                Point((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX));
         }
+      //Sort points into vector of point vectors. 1 row=1process"
+      c_pts_in_proc.resize(processes);
+      int c_siz=0;
+      int proc_id;
+      for (int i=0;i<cnumberofpoints;i++){
+          proc_id=get_owning_process(c_points[i]);
+          if (proc_id) c_siz++; //Needed to send points belonging to other procs
+          c_pts_in_proc[proc_id].push_back(c_points[i]);
+        }
+      //Setting up MPI_Scatterv call
+      //Serialize points to be sent and set up message envelope
+      c_sendbuff.reserve(3*c_siz);
+      c_count.reserve(processes);
+      c_displ.reserve(processes);
+      c_displ[0]=0;
+      for (int i=0;i<processes;i++){
+          for (uint j=0;j<c_pts_in_proc[i].size();j++){
+              if (1){
+//                  cout<<std::setprecision(3);
+//                  cout<<i<<" "<<j<<": ";
+//                  cout<<c_pts_in_proc[i][j].x<<" "<<c_pts_in_proc[i][j].y<<" "<<c_pts_in_proc[i][j].z<<endl;
+                }
+              c_sendbuff.push_back(c_pts_in_proc[i][j].x);
+              c_sendbuff.push_back(c_pts_in_proc[i][j].y);
+              c_sendbuff.push_back(c_pts_in_proc[i][j].z);
+            }
+          c_count[i]=3*c_pts_in_proc[i].size();
+          if (i) c_displ[i]=c_displ[i-1]+c_count[i-1];
+        }
+      cout<<"Sending "<<c_pts_in_proc[0][0].x<<endl;
     }
+  //Sending counts of each process' search space, and then scattering the points
+  //of said space to each process. Should be done with MPI_Struct or MPI_Pack but
+  //AINT NOBODY GOT TIME FOR THAT
+  MPI_Bcast(&c_count[0],processes,MPI_INT,0,MPI_COMM_WORLD);
+  MPI_Scatterv(&c_sendbuff[0],&c_count[0],&c_displ[0],MPI_FLOAT,&c_recvbuf[0],4*c_pts_per_process,MPI_FLOAT,0,MPI_COMM_WORLD);
+  //  if (rank){
+  cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
+  cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
+//  for (int i=0;i<c_count[rank];i+=3)
+//    cout<<rank<<" "<<c_recvbuf[i]<<" "<<c_recvbuf[i+1]<<" "<<c_recvbuf[i+2]<<endl;
+  MPI_Barrier(MPI_COMM_WORLD);
+
+
+  cout<<"================ Q POINTS ======================="<<endl;
+  vector<QPoint> q_points;
+  vector<vector<QPoint> >  q_pts_in_proc;
+  vector<float> q_sendbuff;
+  vector<int> q_count,q_displ;
+  vector<float> q_recvbuf;
+  q_recvbuf.reserve(6*q_pts_per_process);
+  q_count.reserve(processes);
+  if (rank==0){
+
+      for (int i=0;i<qnumberofpoints;i++){
+          q_points.push_back(
+                QPoint((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX));
+        }
+      //Sort points into vector of point vectors. 1 row=1process"
+      q_pts_in_proc.resize(processes);
+      int q_siz=0;
+      int proc_id;
+      for (int i=0;i<qnumberofpoints;i++){
+          proc_id=get_owning_process(q_points[i]);
+          if (proc_id) q_siz++; //Needed to send points belonging to other procs
+          q_pts_in_proc[proc_id].push_back(q_points[i]);
+        }
+      //Setting up MPI_Scatterv call
+      //Serialize points to be sent and set up message envelope
+      q_sendbuff.reserve(3*q_siz);
+      q_count.reserve(processes);
+      q_displ.reserve(processes);
+      q_displ[0]=0;
+      for (int i=0;i<processes;i++){
+          for (uint j=0;j<q_pts_in_proc[i].size();j++){
+              if (1){
+//                  cout<<std::setprecision(3);
+//                  cout<<i<<" "<<j<<": ";
+//                  cout<<q_pts_in_proc[i][j].x<<" "<<q_pts_in_proc[i][j].y<<" "<<q_pts_in_proc[i][j].z<<endl;
+                }
+              q_sendbuff.push_back(q_pts_in_proc[i][j].x);
+              q_sendbuff.push_back(q_pts_in_proc[i][j].y);
+              q_sendbuff.push_back(q_pts_in_proc[i][j].z);
+            }
+          q_count[i]=3*q_pts_in_proc[i].size();
+          if (i) q_displ[i]=q_displ[i-1]+q_count[i-1];
+        }
+      cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
+    }
+  //Sending counts of each process' search space, and then scattering the points
+  //of said space to each process. Should be done with MPI_Struct or MPI_Pack but
+  //AINT NOBODY GOT TIME FOR THAT
+  MPI_Bcast(&q_count[0],processes,MPI_INT,0,MPI_COMM_WORLD);
+  MPI_Scatterv(&q_sendbuff[0],&q_count[0],&q_displ[0],MPI_FLOAT,&q_recvbuf[0],6*q_pts_per_process,MPI_FLOAT,0,MPI_COMM_WORLD);
+  //  if (rank){
+  cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
+  cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
+//  for (int i=0;i<q_count[rank];i+=3)
+//    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
+
+
+
+    vector<Box<Point> > c_boxes;
+    c_boxes.resize(numboxes);
+    for (uint i=0;i<c_boxes.size();i++){
+        c_boxes[i].id=i;
+        c_boxes[i].coords=get_box_coords(i);
+        c_boxes[i].owner=get_box_owner(i);
+      };
+
+
+    vector<Box<QPoint> > q_boxes;
+    q_boxes.resize(numboxes);
+    for (uint i=0;i<q_boxes.size();i++){
+        if (is_my_box(i) ){
+            q_boxes[i].id=i;
+            q_boxes[i].coords=get_box_coords(i);
+            q_boxes[i].owner=get_box_owner(i);
+        }
+      };
+
+    for (int i=0; i<c_count[rank];i+=3){
+        Point temp=Point(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
+        c_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+      }
+
+    for (int i=0; i<q_count[rank];i+=3){
+        QPoint temp=QPoint(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
+        q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+      }
+
+    for (uint i=0; i<q_boxes.size();i++){
+        if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
+            for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+                vector<Point> tentative_nn;
+                tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+                //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+                if (!tentative_nn.empty()){
+                    float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                    for (int dir=0;dir<27;dir++){
+                        int temp_id=get_neighbor_id(dir, i);
+                        bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                        if (temp_id>-1 && should_we_check_neighbors ){
+                            if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
+                                cout<<"LOOKING IN THE PROCESS"<<endl;
+                                vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+                                float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+                                if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                                    tentative_nn=temp;
+                                    cur_dist=d_temp;
+                                    cout<<"Found better in neighbor "<<dir<<endl;
+                                  }
+                              }
+                            else{
+                                //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
+                                //neighbor_proc_count++;
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+  MPI_Finalize();
 }
 
 
@@ -115,5 +251,10 @@ int main(int argc, char **argv){
 ////independent print of results
 ////they are rounded to 3 decimal places, just for facilitating the view
 //for (int i=0;i<qcountinthissplit;i++){
-//  //printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
+//  //printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at
+//coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
 //}
+
+
+
+
