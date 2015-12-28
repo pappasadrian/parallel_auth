@@ -75,40 +75,9 @@ int main(int argc, char **argv){
   c_recvbuf.reserve(4*c_pts_per_process);
   c_count.reserve(processes);
   if (rank==0){
-
-      for (int i=0;i<cnumberofpoints;i++){
-          c_points.push_back(
-                Point((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX));
-        }
-      //Sort points into vector of point vectors. 1 row=1process"
-      c_pts_in_proc.resize(processes);
-      int c_siz=0;
-      int proc_id;
-      for (int i=0;i<cnumberofpoints;i++){
-          proc_id=get_owning_process(c_points[i]);
-          if (proc_id) c_siz++; //Needed to send points belonging to other procs
-          c_pts_in_proc[proc_id].push_back(c_points[i]);
-        }
-      //Setting up MPI_Scatterv call
-      //Serialize points to be sent and set up message envelope
-      c_sendbuff.reserve(3*c_siz);
-      c_count.reserve(processes);
-      c_displ.reserve(processes);
-      c_displ[0]=0;
-      for (int i=0;i<processes;i++){
-          for (uint j=0;j<c_pts_in_proc[i].size();j++){
-              if (1){
-//                  cout<<std::setprecision(3);
-//                  cout<<i<<" "<<j<<": ";
-//                  cout<<c_pts_in_proc[i][j].x<<" "<<c_pts_in_proc[i][j].y<<" "<<c_pts_in_proc[i][j].z<<endl;
-                }
-              c_sendbuff.push_back(c_pts_in_proc[i][j].x);
-              c_sendbuff.push_back(c_pts_in_proc[i][j].y);
-              c_sendbuff.push_back(c_pts_in_proc[i][j].z);
-            }
-          c_count[i]=3*c_pts_in_proc[i].size();
-          if (i) c_displ[i]=c_displ[i-1]+c_count[i-1];
-        }
+      generate_random_points(c_points,cnumberofpoints);
+      assign_points_to_proccesses(c_points,processes,c_pts_in_proc);
+      prepare_scatterv_msg(c_pts_in_proc,c_sendbuff,c_count,c_displ);
       cout<<"Sending "<<c_pts_in_proc[0][0].x<<endl;
     }
   //Sending counts of each process' search space, and then scattering the points
@@ -119,54 +88,23 @@ int main(int argc, char **argv){
   //  if (rank){
   cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
   cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
-//  for (int i=0;i<c_count[rank];i+=3)
-//    cout<<rank<<" "<<c_recvbuf[i]<<" "<<c_recvbuf[i+1]<<" "<<c_recvbuf[i+2]<<endl;
+  //  for (int i=0;i<c_count[rank];i+=3)
+  //    cout<<rank<<" "<<c_recvbuf[i]<<" "<<c_recvbuf[i+1]<<" "<<c_recvbuf[i+2]<<endl;
   MPI_Barrier(MPI_COMM_WORLD);
 
 
   cout<<"================ Q POINTS ======================="<<endl;
-  vector<QPoint> q_points;
-  vector<vector<QPoint> >  q_pts_in_proc;
+  vector<Point> q_points;
+  vector<vector<Point> >  q_pts_in_proc;
   vector<float> q_sendbuff;
   vector<int> q_count,q_displ;
   vector<float> q_recvbuf;
   q_recvbuf.reserve(6*q_pts_per_process);
   q_count.reserve(processes);
   if (rank==0){
-
-      for (int i=0;i<qnumberofpoints;i++){
-          q_points.push_back(
-                QPoint((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX));
-        }
-      //Sort points into vector of point vectors. 1 row=1process"
-      q_pts_in_proc.resize(processes);
-      int q_siz=0;
-      int proc_id;
-      for (int i=0;i<qnumberofpoints;i++){
-          proc_id=get_owning_process(q_points[i]);
-          if (proc_id) q_siz++; //Needed to send points belonging to other procs
-          q_pts_in_proc[proc_id].push_back(q_points[i]);
-        }
-      //Setting up MPI_Scatterv call
-      //Serialize points to be sent and set up message envelope
-      q_sendbuff.reserve(3*q_siz);
-      q_count.reserve(processes);
-      q_displ.reserve(processes);
-      q_displ[0]=0;
-      for (int i=0;i<processes;i++){
-          for (uint j=0;j<q_pts_in_proc[i].size();j++){
-              if (1){
-//                  cout<<std::setprecision(3);
-//                  cout<<i<<" "<<j<<": ";
-//                  cout<<q_pts_in_proc[i][j].x<<" "<<q_pts_in_proc[i][j].y<<" "<<q_pts_in_proc[i][j].z<<endl;
-                }
-              q_sendbuff.push_back(q_pts_in_proc[i][j].x);
-              q_sendbuff.push_back(q_pts_in_proc[i][j].y);
-              q_sendbuff.push_back(q_pts_in_proc[i][j].z);
-            }
-          q_count[i]=3*q_pts_in_proc[i].size();
-          if (i) q_displ[i]=q_displ[i-1]+q_count[i-1];
-        }
+      generate_random_points(q_points,qnumberofpoints);
+      assign_points_to_proccesses(q_points,processes,q_pts_in_proc);
+      prepare_scatterv_msg(q_pts_in_proc,q_sendbuff,q_count,q_displ);
       cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
     }
   //Sending counts of each process' search space, and then scattering the points
@@ -177,72 +115,74 @@ int main(int argc, char **argv){
   //  if (rank){
   cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
   cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
-//  for (int i=0;i<q_count[rank];i+=3)
-//    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
+    for (int i=0;i<q_count[rank];i+=3)
+      cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
 
 
 
-    vector<Box<Point> > c_boxes;
-    c_boxes.resize(numboxes);
-    for (uint i=0;i<c_boxes.size();i++){
-        c_boxes[i].id=i;
-        c_boxes[i].coords=get_box_coords(i);
-        c_boxes[i].owner=get_box_owner(i);
-      };
+  vector<Box<Point> > c_boxes;
+  c_boxes.resize(numboxes);
+  for (uint i=0;i<c_boxes.size();i++){
+      c_boxes[i].id=i;
+      c_boxes[i].coords=get_box_coords(i);
+      c_boxes[i].owner=get_box_owner(i);
+    };
 
 
-    vector<Box<QPoint> > q_boxes;
-    q_boxes.resize(numboxes);
-    for (uint i=0;i<q_boxes.size();i++){
-        if (is_my_box(i) ){
-            q_boxes[i].id=i;
-            q_boxes[i].coords=get_box_coords(i);
-            q_boxes[i].owner=get_box_owner(i);
+  vector<Box<QPoint> > q_boxes;
+  q_boxes.resize(numboxes);
+  for (uint i=0;i<q_boxes.size();i++){
+      if (is_my_box(i) ){
+          q_boxes[i].id=i;
+          q_boxes[i].coords=get_box_coords(i);
+          q_boxes[i].owner=get_box_owner(i);
         }
-      };
+    };
 
-    for (int i=0; i<c_count[rank];i+=3){
-        Point temp=Point(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
-        c_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
-      }
+  for (int i=0; i<c_count[rank];i+=3){
+      Point temp=Point(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
+      c_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+    }
 
-    for (int i=0; i<q_count[rank];i+=3){
-        QPoint temp=QPoint(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
-        q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
-      }
+  for (int i=0; i<q_count[rank];i+=3){
+      QPoint temp=QPoint(q_recvbuf[i],q_recvbuf[i+1],q_recvbuf[i+2]);
+      q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+    }
 
-    for (uint i=0; i<q_boxes.size();i++){
-        if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
-            for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
-                vector<Point> tentative_nn;
-                tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
-                //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
-                if (!tentative_nn.empty()){
-                    float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
-                    for (int dir=0;dir<27;dir++){
-                        int temp_id=get_neighbor_id(dir, i);
-                        bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
-                        if (temp_id>-1 && should_we_check_neighbors ){
-                            if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
-                                cout<<"LOOKING IN THE PROCESS"<<endl;
-                                vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
-                                float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-                                if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
-                                    tentative_nn=temp;
-                                    cur_dist=d_temp;
-                                    cout<<"Found better in neighbor "<<dir<<endl;
-                                  }
-                              }
-                            else{
-                                //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
-                                //neighbor_proc_count++;
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-      }
+  for (uint i=0; i<q_boxes.size();i++){
+      if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
+          for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+              vector<Point> tentative_nn;
+              tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+              //cout<<"Dist:"<<euclidean(tentative_nn[0],q_boxes[i].point_cloud[j])<<endl;
+              if (!tentative_nn.empty()){
+                  float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                  for (int dir=0;dir<27;dir++){
+                      int temp_id=get_neighbor_id(dir, i);
+                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                      if (temp_id>-1 && should_we_check_neighbors ){
+                          if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
+                              cout<<"LOOKING IN THE PROCESS"<<endl;
+                              vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+                              float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+                              if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                                  tentative_nn=temp;
+                                  cur_dist=d_temp;
+                                  cout<<"Found better in neighbor "<<dir<<endl;
+                                }
+                            }
+                          else{
+                              //cout<<is_my_box(temp_id)<<":In other process. IMPLEMENT THIS!"<<endl;
+                              //neighbor_proc_count++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
   MPI_Finalize();
 }
 
