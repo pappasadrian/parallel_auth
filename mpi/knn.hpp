@@ -9,8 +9,9 @@
 #include <vector>
 #include <string.h>
 #include <iostream>
-
-int processid=6; //for testing purposes - this should be dynamically allocated
+#include <stdio.h>
+#include <iomanip>
+int rank; //for testing purposes - this should be dynamically allocated
 //global variables
 int boxdimensions[3];
 int splitdimensions[3];
@@ -32,9 +33,14 @@ struct Point{
   float x;
   float y;
   float z;
-  Point(){};
+  Point();
   Point(float x, float y, float z);
 };
+Point::Point(){
+  //  x=(float)rand() / RAND_MAX;
+  //  y=(float)rand()/ RAND_MAX;
+  //  z=(float)rand()/ RAND_MAX;
+}
 
 Point::Point(float x, float y, float z){
   this->x=x;
@@ -46,11 +52,11 @@ struct QPoint : public Point{
   Point nn;
   bool found_nn;
   QPoint();
-  ~QPoint(){};
+  ~QPoint(){}
   QPoint(float x, float y, float z);
 };
 
-QPoint::QPoint()
+QPoint::QPoint() : Point()
 {
   found_nn=false;
 }
@@ -138,10 +144,13 @@ int get_box_owner(int boxid){
   pro = split_2_procID(splitcoords);
   return pro;
 }
+int get_owning_process(Point p){
+  return get_box_owner(find_in_which_box(p));
+}
 
 //check if given boxid belongs to current process
 int is_my_box(int id){
-  if (get_box_owner(id)==processid) return 1;
+  if (get_box_owner(id)==rank) return 1;
   else return 0;
 }
 
@@ -253,6 +262,7 @@ int does_box_intersect_sphere(int boxid, struct Point q, float R)
   return distancesquared > 0;
 }
 
+
 std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
   using std::vector;
   using std::cout;
@@ -279,4 +289,44 @@ std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
       nn.push_back(search_space[min_index]);
     }
   return nn;
+}
+
+void generate_random_points(std::vector<Point>& pts,const int num ){
+  pts.reserve(num);
+  for (int i=0;i<num;i++){
+      pts.push_back(
+            Point((float)rand() / RAND_MAX,(float)rand() / RAND_MAX,(float)rand() / RAND_MAX));
+    }
+}
+
+void assign_points_to_proccesses(const std::vector<Point>& pts,
+                                 const int proc_count,
+                                 std::vector<std::vector<Point> >& sorted_points){
+  sorted_points.resize(proc_count);
+  for (uint i=0;i<pts.size();i++){
+      sorted_points[get_owning_process(pts[i])].push_back(pts[i]);
+    }
+}
+
+void prepare_scatterv_msg(const std::vector<std::vector<Point> >& proc_array,
+                          std::vector<float>& sendbuf,
+                          std::vector<int>& count,
+                          std::vector<int>& displ){
+  using namespace std;
+  count.reserve(proc_array.size());
+  displ.reserve(proc_array.size());
+  displ[0]=0;
+  for (uint i=0;i<proc_array.size();i++)  {
+      cout<<endl;
+      for (uint j=0;j<proc_array[i].size();j++){
+          sendbuf.push_back(proc_array[i][j].x);
+          sendbuf.push_back(proc_array[i][j].y);
+          sendbuf.push_back(proc_array[i][j].z);
+//          if (i==1)cout<<std::setprecision(4)<<proc_array[0][j].x<<" "<<proc_array[0][j].y<<" "<<proc_array[0][j].z<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
+          cout<<setprecision(3);
+          cout<<i<<","<<j<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
+        }
+      count[i]=3*proc_array[i].size();
+      if (i) displ[i]=displ[i-1]+count[i-1];
+    }
 }
