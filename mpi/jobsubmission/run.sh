@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -­q auth
-#PBS ­-N mpi-knn
+#PBS ­-N knn-process-name
 #PBS ­-j oe
 #PBS ­-l nodes=1:ppn=4
 
