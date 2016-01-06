@@ -154,6 +154,8 @@ int main(int argc, char **argv){
   vector<float> rslts_sendbuf;
   vector<vector<BoundaryMsg> > boundary_pts;
   boundary_pts.resize(processes);
+  vector<vector<int> > boundary_pts_index;
+  boundary_pts_index.resize(2);
   for (uint i=0; i<q_boxes.size();i++){
       if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
@@ -178,15 +180,17 @@ int main(int argc, char **argv){
                               BoundaryMsg temp;
                               temp.set(q_boxes[i].point_cloud[j].to_vector(),split_id);
                               boundary_pts[split_id].push_back(temp);
+                              boundary_pts_index[0].push_back(i);
+                              boundary_pts_index[1].push_back(j);
                             }
                         }
                     }
                 }
               if (!tentative_nn.empty()) q_boxes[i].point_cloud[j].nn=tentative_nn[0];
               else {
-                  q_boxes[i].point_cloud[j].nn.x=-2;
-                  q_boxes[i].point_cloud[j].nn.y=-2;
-                  q_boxes[i].point_cloud[j].nn.z=-2;
+                  q_boxes[i].point_cloud[j].nn.x=2;
+                  q_boxes[i].point_cloud[j].nn.y=2;
+                  q_boxes[i].point_cloud[j].nn.z=2;
                 }
             }
           cout<<rank<<" i:"<<rslts_sendbuf.size()<<endl;
@@ -245,7 +249,20 @@ int main(int argc, char **argv){
   nn_recvbuff.resize(pts_sendbuf.size());
 
 
+  MPI_Datatype PointMsg_MPI;
+  MPI_Type_contiguous(3,MPI_FLOAT,&PointMsg_MPI);
+  MPI_Type_commit(&PointMsg_MPI);
 
+  MPI_Alltoallv(&nn_sendbuff[0],&pts_recvcount[0],&pts_rdispl[0],PointMsg_MPI,
+                &nn_recvbuff[0],&pts_sendcount[0],&pts_sdispl[0],PointMsg_MPI,comm);
+  for (uint i=0;i<boundary_pts_index[0].size();i++){
+      int ii=boundary_pts_index[0][i];
+      int jj=boundary_pts_index[1][i];
+      Point foreign_nn=nn_recvbuff[i].to_point();
+      float d_old=euclidean(q_boxes[ii].point_cloud[jj],q_boxes[ii].point_cloud[jj].nn);
+      float d_new=euclidean(q_boxes[ii].point_cloud[jj], foreign_nn);
+      if (d_new<d_old) q_boxes[ii].point_cloud[jj].nn=foreign_nn;
+    }
 
   for (uint i=0;i<q_boxes.size();i++){
       for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
