@@ -35,6 +35,7 @@ struct Point{
   float z;
   Point();
   Point(float x, float y, float z);
+  std::vector<float> to_vector();
 };
 Point::Point(){
   //  x=(float)rand() / RAND_MAX;
@@ -47,6 +48,19 @@ Point::Point(float x, float y, float z){
   this->y=y;
   this->z=z;
 }
+
+std::vector<float> Point::to_vector(){
+  std::vector<float> vec;
+  vec.push_back(x);
+  vec.push_back(y);
+  vec.push_back(z);
+  return vec;
+}
+struct PointMsg{
+  float x;
+  float y;
+  float z;
+};
 
 struct QPoint : public Point{
   Point nn;
@@ -329,4 +343,25 @@ void prepare_scatterv_msg(const std::vector<std::vector<Point> >& proc_array,
       count[i]=3*proc_array[i].size();
       if (i) displ[i]=displ[i-1]+count[i-1];
     }
+}
+
+struct BoundaryMsg{
+  float pt[3];
+  int box;
+  void set(std::vector<float> vec, int box_id);
+};
+
+void BoundaryMsg::set(std::vector<float> vec, int box_id){
+  for (int i=0;i<3;i++) pt[i]=vec[i];
+  box=box_id;
+}
+
+template <class T> std::vector<T> flatten(const std::vector<std::vector<T> >& vec_2d) {
+  std::vector<T> flat_vec;
+  for (uint i=0;i<vec_2d.size();i++){
+      for (uint j=0;j<vec_2d[i].size();j++){
+          flat_vec.push_back(vec_2d[i][j]);
+        }
+    }
+  return flat_vec;
 }
