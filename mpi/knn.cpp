@@ -87,14 +87,14 @@ int main(int argc, char **argv){
   MPI_Bcast(&c_count[0],processes,MPI_INT,0,comm);
   MPI_Scatterv(&c_sendbuff[0],&c_count[0],&c_displ[0],MPI_FLOAT,&c_recvbuf[0],4*c_pts_per_process,MPI_FLOAT,0,comm);
   //  if (rank){
-  cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
-  cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
+//  cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
+//  cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
   //  for (int i=0;i<c_count[rank];i+=3)
   //    cout<<rank<<" "<<c_recvbuf[i]<<" "<<c_recvbuf[i+1]<<" "<<c_recvbuf[i+2]<<endl;
   MPI_Barrier(comm);
 
 
-  cout<<"================ Q POINTS ======================="<<endl;
+//  cout<<"================ Q POINTS ======================="<<endl;
   vector<Point> q_points;
   vector<vector<Point> >  q_pts_in_proc;
   vector<float> q_sendbuff;
@@ -106,7 +106,7 @@ int main(int argc, char **argv){
       generate_random_points(q_points,qnumberofpoints);
       assign_points_to_proccesses(q_points,processes,q_pts_in_proc);
       prepare_scatterv_msg(q_pts_in_proc,q_sendbuff,q_count,q_displ);
-      cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
+//      cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
     }
   //Sending counts of each process' search space, and then scattering the points
   //of said space to each process. Should be done with MPI_Struct or MPI_Pack but
@@ -114,10 +114,10 @@ int main(int argc, char **argv){
   MPI_Bcast(&q_count[0],processes,MPI_INT,0,comm);
   MPI_Scatterv(&q_sendbuff[0],&q_count[0],&q_displ[0],MPI_FLOAT,&q_recvbuf[0],6*q_pts_per_process,MPI_FLOAT,0,comm);
   //  if (rank){
-  cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
-  cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
-  for (int i=0;i<q_count[rank];i+=3)
-    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
+//  cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
+//  cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
+//  for (int i=0;i<q_count[rank];i+=3)
+//    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
 
 
 
@@ -186,14 +186,15 @@ int main(int argc, char **argv){
                         }
                     }
                 }
-              if (!tentative_nn.empty()) q_boxes[i].point_cloud[j].nn=tentative_nn[0];
+              if (!tentative_nn.empty()){
+                  q_boxes[i].point_cloud[j].nn=tentative_nn[0];
+                }
               else {
                   q_boxes[i].point_cloud[j].nn.x=2;
                   q_boxes[i].point_cloud[j].nn.y=2;
                   q_boxes[i].point_cloud[j].nn.z=2;
                 }
             }
-          cout<<rank<<" i:"<<rslts_sendbuf.size()<<endl;
         }
     }
   vector<int> pts_sendcount,pts_sdispl;
@@ -216,7 +217,6 @@ int main(int argc, char **argv){
     }
 
   vector<BoundaryMsg> pts_sendbuf=flatten(boundary_pts);
-  cout<<rank<<" sent alltoalv: "<<pts_sendbuf[0].pt[0]<<endl;
   vector<BoundaryMsg> pts_recvbuf;
   pts_recvbuf.resize(pts_recvbuf_len);
 
@@ -235,7 +235,7 @@ int main(int argc, char **argv){
   MPI_Type_commit(&BoundaryMsg_MPI);
 
   MPI_Alltoallv(&pts_sendbuf[0],&pts_sendcount[0],&pts_sdispl[0],BoundaryMsg_MPI,
-                &pts_recvbuf[0],&pts_recvcount[0],&pts_rdispl[0],BoundaryMsg_MPI,comm);
+      &pts_recvbuf[0],&pts_recvcount[0],&pts_rdispl[0],BoundaryMsg_MPI,comm);
 
   vector<PointMsg> nn_sendbuff;
   nn_sendbuff.resize(pts_recvbuf.size());
@@ -254,7 +254,7 @@ int main(int argc, char **argv){
   MPI_Type_commit(&PointMsg_MPI);
 
   MPI_Alltoallv(&nn_sendbuff[0],&pts_recvcount[0],&pts_rdispl[0],PointMsg_MPI,
-                &nn_recvbuff[0],&pts_sendcount[0],&pts_sdispl[0],PointMsg_MPI,comm);
+      &nn_recvbuff[0],&pts_sendcount[0],&pts_sdispl[0],PointMsg_MPI,comm);
   for (uint i=0;i<boundary_pts_index[0].size();i++){
       int ii=boundary_pts_index[0][i];
       int jj=boundary_pts_index[1][i];
@@ -263,6 +263,8 @@ int main(int argc, char **argv){
       float d_new=euclidean(q_boxes[ii].point_cloud[jj], foreign_nn);
       if (d_new<d_old) q_boxes[ii].point_cloud[jj].nn=foreign_nn;
     }
+
+
 
   for (uint i=0;i<q_boxes.size();i++){
       for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
@@ -288,14 +290,9 @@ int main(int argc, char **argv){
           rslts_displs[i]=rslts_cnt[i-1]+rslts_displs[i-1];
           cout<<rslts_displs[i]<<endl;
         }
-      cout<<"B4 gathering"<<endl;
+//      cout<<"B4 gathering"<<endl;
     }
 
-  if (rank==0){
-      cout<<"sendbuf stats"<<endl;
-      cout<<rslts_sendbuf[0] <<endl;
-      cout<<rslts_sendbuf.size()<<endl;
-    }
   MPI_Gatherv(&rslts_sendbuf[0],(int)rslts_sendbuf.size(),MPI_FLOAT,
       &rslts_recvbuf[0],&rslts_cnt[0],&rslts_displs[0],MPI_FLOAT,0,
       comm);
@@ -303,26 +300,28 @@ int main(int argc, char **argv){
 
   if (rank==0){
       cout<<"Gathered: "<<rslts_recvbuf[0]<<" "<<rslts_recvbuf[1]<<endl;
+      int wrong_results=0;
       vector<QPoint> results;
-      results.reserve(qnumberofpoints);
+      results.resize(qnumberofpoints);
       int j=0;
       for (int i=0;i<6*qnumberofpoints;i+=6){
           results[j]=QPoint(rslts_recvbuf[i],rslts_recvbuf[i+1],rslts_recvbuf[i+2]);
           results[j].nn=Point(rslts_recvbuf[i+3],rslts_recvbuf[i+4],rslts_recvbuf[i+5]);
+          j++;
         }
-      //SEARCH VALIDATION GOES HERE!
+      for (int i=0;i<qnumberofpoints;i++){
+          vector<Point> nn_real=naive_search(results[i],c_points);
+          float d_found=euclidean(results[i],results[i].nn);
+          float d_real=euclidean(results[i],nn_real[0]);
+          cout<<std::setprecision(8);
+//          cout<<"real "<<d_real<<" found "<<d_found<<" "<<(d_real-d_found<0.001)<<endl;
+          if (abs(d_real-d_found)<0.0011) wrong_results++;
+        }
+      cout<<"Misclassification rate: "<< (float)wrong_results/qnumberofpoints;
     }
   MPI_Finalize();
 }
 
-
-
-////independent print of results
-////they are rounded to 3 decimal places, just for facilitating the view
-//for (int i=0;i<qcountinthissplit;i++){
-//  //printf("#%d Q point at coords (%.3f,%.3f,%.3f) is nearest to point C at
-//coords (%.3f,%.3f,%.3f)\n\n",i+1,results[2*i].x,results[2*i].y,results[2*i].z,results[2*i+1].x,results[2*i+1].y,results[2*i+1].z);
-//}
 
 
 
