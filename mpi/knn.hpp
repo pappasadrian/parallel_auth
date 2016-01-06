@@ -29,6 +29,14 @@ int Pnumboxesperprocess;
 int numboxesperprocess;
 
 //struct for point coordinates
+
+//POD version of Point
+struct PointMsg{
+  float x;
+  float y;
+  float z;
+};
+
 struct Point{
   float x;
   float y;
@@ -36,6 +44,7 @@ struct Point{
   Point();
   Point(float x, float y, float z);
   std::vector<float> to_vector();
+  PointMsg to_msg();
 };
 Point::Point(){
   //  x=(float)rand() / RAND_MAX;
@@ -56,11 +65,15 @@ std::vector<float> Point::to_vector(){
   vec.push_back(z);
   return vec;
 }
-struct PointMsg{
-  float x;
-  float y;
-  float z;
-};
+
+PointMsg Point::to_msg(){
+  PointMsg msg;
+  msg.x=x;
+  msg.y=y;
+  msg.z=z;
+  return msg;
+}
+
 
 struct QPoint : public Point{
   Point nn;

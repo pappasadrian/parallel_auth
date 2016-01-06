@@ -235,8 +235,16 @@ int main(int argc, char **argv){
 
   vector<PointMsg> nn_sendbuff;
   nn_sendbuff.resize(pts_recvbuf.size());
+  for (uint i=0;i<pts_recvbuf.size();i++){
+      QPoint temp(pts_recvbuf[i].pt[0],pts_recvbuf[i].pt[1],pts_recvbuf[i].pt[2]);
+      vector<Point> nn=naive_search(temp,c_boxes[pts_recvbuf[i].box].point_cloud);
+      if (nn.empty() ) nn.push_back(Point(2,2,2));
+      nn_sendbuff[i]=nn[0].to_msg();
+    }
   vector<PointMsg> nn_recvbuff;
   nn_recvbuff.resize(pts_sendbuf.size());
+
+
 
 
   for (uint i=0;i<q_boxes.size();i++){
