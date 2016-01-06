@@ -87,39 +87,44 @@ int main(int argc, char **argv){
   MPI_Bcast(&c_count[0],processes,MPI_INT,0,comm);
   MPI_Scatterv(&c_sendbuff[0],&c_count[0],&c_displ[0],MPI_FLOAT,&c_recvbuf[0],4*c_pts_per_process,MPI_FLOAT,0,comm);
   //  if (rank){
-//  cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
-//  cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
+  //  cout<<std::setprecision(3)<<rank<< " received " <<c_recvbuf[0]<<endl;
+  //  cout<<std::setprecision(3)<<rank<< " count " <<c_count[rank]<<endl;
   //  for (int i=0;i<c_count[rank];i+=3)
   //    cout<<rank<<" "<<c_recvbuf[i]<<" "<<c_recvbuf[i+1]<<" "<<c_recvbuf[i+2]<<endl;
   MPI_Barrier(comm);
 
 
-//  cout<<"================ Q POINTS ======================="<<endl;
+  //  cout<<"================ Q POINTS ======================="<<endl;
   vector<Point> q_points;
   vector<vector<Point> >  q_pts_in_proc;
   vector<float> q_sendbuff;
   vector<int> q_count,q_displ;
-  vector<float> q_recvbuf;
-  q_recvbuf.reserve(6*q_pts_per_process);
+
   q_count.reserve(processes);
   if (rank==0){
       generate_random_points(q_points,qnumberofpoints);
       assign_points_to_proccesses(q_points,processes,q_pts_in_proc);
       prepare_scatterv_msg(q_pts_in_proc,q_sendbuff,q_count,q_displ);
-//      cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
+      //      cout<<"Sending "<<q_pts_in_proc[0][0].x<<endl;
     }
   //Sending counts of each process' search space, and then scattering the points
   //of said space to each process. Should be done with MPI_Struct or MPI_Pack but
   //AINT NOBODY GOT TIME FOR THAT
   MPI_Bcast(&q_count[0],processes,MPI_INT,0,comm);
+  vector<float> q_recvbuf;
+  q_recvbuf.resize(3*q_count[rank]);
   MPI_Scatterv(&q_sendbuff[0],&q_count[0],&q_displ[0],MPI_FLOAT,&q_recvbuf[0],6*q_pts_per_process,MPI_FLOAT,0,comm);
   //  if (rank){
-//  cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
-//  cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
-//  for (int i=0;i<q_count[rank];i+=3)
-//    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
+  //  cout<<std::setprecision(3)<<rank<< " received " <<q_recvbuf[0]<<endl;
+  //  cout<<std::setprecision(3)<<rank<< " count " <<q_count[rank]<<endl;
+  //  for (int i=0;i<q_count[rank];i+=3)
+  //    cout<<rank<<" "<<q_recvbuf[i]<<" "<<q_recvbuf[i+1]<<" "<<q_recvbuf[i+2]<<endl;
 
 
+  for (int i=0;i<processes;i++){
+      cout<<q_count[i]<<" ";
+    }
+  cout<<endl;
 
   vector<Box<Point> > c_boxes;
   c_boxes.resize(numboxes);
@@ -144,59 +149,91 @@ int main(int argc, char **argv){
       Point temp=Point(c_recvbuf[i],c_recvbuf[i+1],c_recvbuf[i+2]);
       c_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
     }
-
+  cout<<"q_count[rank] "<<q_count[rank]/3<<endl;
+  int good=0;
+  vector<int> ptsInBox;
+  ptsInBox.resize(numboxes);
+  for (int i=0; i<numboxes;i++)ptsInBox[i]=0;
   for (int i=0; i<q_count[rank];i+=3){
       QPoint temp=QPoint(q_recvbuf[i],q_recvbuf[i+1],q_recvbuf[i+2]);
       q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+      ptsInBox[find_in_which_box(temp)]=ptsInBox[find_in_which_box(temp)]+1;
+      if (rank==get_box_owner(find_in_which_box(temp))) good++;
     }
-  //  MPI_Barrier(comm);
+  cout<<"good"<<good<<endl;
+//  cout<<rank<<" ";
+//  for (int i=0;i<numboxes;i++) cout<<std::setw(2)<<std::setfill(' ')<< ptsInBox[i]<<" ";
+//  cout<<endl<<rank<<" ";
+//  for (int i=0;i<numboxes;i++) cout<<std::setw(2)<<std::setfill(' ')<<get_box_owner(i)<<" ";
+//  cout<<endl;
+  MPI_Barrier(comm);
 
   vector<float> rslts_sendbuf;
   vector<vector<BoundaryMsg> > boundary_pts;
   boundary_pts.resize(processes);
   vector<vector<int> > boundary_pts_index;
   boundary_pts_index.resize(2);
+  int test=0;
+  int test2=0;
+  int test3=0;
+;
   for (uint i=0; i<q_boxes.size();i++){
-      if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].id){
+      if (rank && !q_boxes[i].point_cloud.empty() ){
+          test2++;
+        }
+      if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].owner){
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+              test3++;
               vector<Point> tentative_nn;
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+              float cur_dist=2;
               if (!tentative_nn.empty()){
-                  float cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
-                  for (int dir=0;dir<27;dir++){
-                      int temp_id=get_neighbor_id(dir, i);
-                      bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
-                      if (temp_id>-1 && should_we_check_neighbors ){
-                          if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
-                              vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
-                              float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-                              if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
-                                  tentative_nn=temp;
-                                  cur_dist=d_temp;
-                                }
+                  cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                }
+              for (int dir=0;dir<27;dir++){
+                  int temp_id=get_neighbor_id(dir, i);
+//                  cout<<temp_id<<" ";
+                  if (temp_id>numboxes-1) temp_id=-2;
+                  bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                  if (temp_id>-1 && should_we_check_neighbors ){
+                      if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
+                          vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+                          float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+                          if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                              tentative_nn=temp;
+                              cur_dist=d_temp;
                             }
-                          else{
-                              int split_id=get_box_owner(temp_id);
-                              BoundaryMsg temp;
-                              temp.set(q_boxes[i].point_cloud[j].to_vector(),split_id);
-                              boundary_pts[split_id].push_back(temp);
-                              boundary_pts_index[0].push_back(i);
-                              boundary_pts_index[1].push_back(j);
-                            }
+                        }
+                      else{
+                          int split_id=get_box_owner(temp_id);
+                          BoundaryMsg temp;
+                          temp.set(q_boxes[i].point_cloud[j].to_vector(),temp_id);
+                          boundary_pts[split_id].push_back(temp);
+                          boundary_pts_index[0].push_back(i);
+                          boundary_pts_index[1].push_back(j);
+//                          cout<<"boundary_pts_index[0].size()"<<boundary_pts_index[0].size()<<endl;
                         }
                     }
                 }
+
               if (!tentative_nn.empty()){
                   q_boxes[i].point_cloud[j].nn=tentative_nn[0];
+                  float dist=euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]);
+                  test++;
+                  if (dist>0.6) cout<<"trouble"<<endl;
                 }
               else {
                   q_boxes[i].point_cloud[j].nn.x=2;
                   q_boxes[i].point_cloud[j].nn.y=2;
                   q_boxes[i].point_cloud[j].nn.z=2;
+                  test2++;
                 }
             }
         }
+//      cout<<i<<" ";
     }
+  cout<<endl;
+  cout<<rank<<" asd"<<test3<<" " <<test2<<endl;
   vector<int> pts_sendcount,pts_sdispl;
   pts_sendcount.resize(processes);
   pts_sdispl.resize(processes);
@@ -255,12 +292,14 @@ int main(int argc, char **argv){
 
   MPI_Alltoallv(&nn_sendbuff[0],&pts_recvcount[0],&pts_rdispl[0],PointMsg_MPI,
       &nn_recvbuff[0],&pts_sendcount[0],&pts_sdispl[0],PointMsg_MPI,comm);
+
   for (uint i=0;i<boundary_pts_index[0].size();i++){
       int ii=boundary_pts_index[0][i];
       int jj=boundary_pts_index[1][i];
       Point foreign_nn=nn_recvbuff[i].to_point();
       float d_old=euclidean(q_boxes[ii].point_cloud[jj],q_boxes[ii].point_cloud[jj].nn);
       float d_new=euclidean(q_boxes[ii].point_cloud[jj], foreign_nn);
+//      cout<<d_new<<" "<<d_old<<endl;
       if (d_new<d_old) q_boxes[ii].point_cloud[jj].nn=foreign_nn;
     }
 
@@ -288,9 +327,9 @@ int main(int argc, char **argv){
       rslts_displs[0]=0;
       for (int i=0;i<processes;i++){
           rslts_displs[i]=rslts_cnt[i-1]+rslts_displs[i-1];
-          cout<<rslts_displs[i]<<endl;
+//          cout<<rslts_displs[i]<<endl;
         }
-//      cout<<"B4 gathering"<<endl;
+      //      cout<<"B4 gathering"<<endl;
     }
 
   MPI_Gatherv(&rslts_sendbuf[0],(int)rslts_sendbuf.size(),MPI_FLOAT,
@@ -313,11 +352,10 @@ int main(int argc, char **argv){
           vector<Point> nn_real=naive_search(results[i],c_points);
           float d_found=euclidean(results[i],results[i].nn);
           float d_real=euclidean(results[i],nn_real[0]);
-          cout<<std::setprecision(8);
-//          cout<<"real "<<d_real<<" found "<<d_found<<" "<<(d_real-d_found<0.001)<<endl;
-          if (abs(d_real-d_found)<0.0011) wrong_results++;
+          if (abs(d_real-d_found)>0.00001) wrong_results++;
         }
-      cout<<"Misclassification rate: "<< (float)wrong_results/qnumberofpoints;
+      cout<<"Misclassification rate: "<< (float)wrong_results/qnumberofpoints<<endl;
+      cout<<"wrong"<<wrong_results<<endl;
     }
   MPI_Finalize();
 }
