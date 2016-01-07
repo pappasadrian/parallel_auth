@@ -356,9 +356,9 @@ void prepare_scatterv_msg(const std::vector<std::vector<Point> >& proc_array,
           sendbuf.push_back(proc_array[i][j].x);
           sendbuf.push_back(proc_array[i][j].y);
           sendbuf.push_back(proc_array[i][j].z);
-//          if (i==1)cout<<std::setprecision(4)<<proc_array[0][j].x<<" "<<proc_array[0][j].y<<" "<<proc_array[0][j].z<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
-//          cout<<setprecision(3);
-//          cout<<i<<","<<j<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
+          //          if (i==1)cout<<std::setprecision(4)<<proc_array[0][j].x<<" "<<proc_array[0][j].y<<" "<<proc_array[0][j].z<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
+          //          cout<<setprecision(3);
+          //          cout<<i<<","<<j<<" "<<proc_array[i][j].x<<" "<<proc_array[i][j].y<<" "<<proc_array[i][j].z<<endl;
         }
       count[i]=3*proc_array[i].size();
       if (i) displ[i]=displ[i-1]+count[i-1];
@@ -384,4 +384,74 @@ template <class T> std::vector<T> flatten(const std::vector<std::vector<T> >& ve
         }
     }
   return flat_vec;
+}
+
+std::vector<Box<QPoint> > single_threaded_search(const std::vector<Point>& c_points,
+                                           const std::vector<Point>& q_points,
+                                           int numboxes)
+{
+  using std::vector;
+  vector<Box<Point> > c_boxes;
+  c_boxes.resize(numboxes);
+  for (uint i=0;i<c_boxes.size();i++){
+      c_boxes[i].id=i;
+      c_boxes[i].coords=get_box_coords(i);
+      c_boxes[i].owner=get_box_owner(i);
+    };
+  for (uint i=0;i<c_points.size();i++){
+      c_boxes[find_in_which_box(c_points[i])].point_cloud.push_back(c_points[i]);
+    }
+
+
+  vector<Box<QPoint> > q_boxes;
+  q_boxes.resize(numboxes);
+  for (uint i=0;i<q_boxes.size();i++){
+      if (is_my_box(i) ){
+          q_boxes[i].id=i;
+          q_boxes[i].coords=get_box_coords(i);
+          q_boxes[i].owner=get_box_owner(i);
+        }
+    };
+  for (uint i=0;i<q_points.size();i++){
+      QPoint temp=QPoint(q_points[i].x,q_points[i].y,q_points[i].z);
+      q_boxes[find_in_which_box(temp)].point_cloud.push_back(temp);
+    }
+  for (uint i=0; i<q_boxes.size();i++){
+      if (!q_boxes[i].point_cloud.empty() && rank==q_boxes[i].owner){
+          for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
+              vector<Point> tentative_nn;
+              tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
+              float cur_dist=2;
+              if (!tentative_nn.empty()){
+                  cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                }
+              for (int dir=0;dir<27;dir++){
+                  int temp_id=get_neighbor_id(dir, i);
+                  if (temp_id>numboxes-1 ) temp_id=-2;
+                  bool should_we_check_neighbors=does_box_intersect_sphere(temp_id,q_boxes[i].point_cloud[j],cur_dist);
+                  if (temp_id>-1 && should_we_check_neighbors ){
+                      if (!c_boxes[temp_id].point_cloud.empty()){
+                          vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
+                          float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
+                          if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                              tentative_nn=temp;
+                              cur_dist=d_temp;
+                            }
+                        }
+                    }
+                }
+
+              if (!tentative_nn.empty()){
+                  q_boxes[i].point_cloud[j].nn=tentative_nn[0];
+                }
+              else {
+                  q_boxes[i].point_cloud[j].nn.x=2;
+                  q_boxes[i].point_cloud[j].nn.y=2;
+                  q_boxes[i].point_cloud[j].nn.z=2;
+                }
+            }
+        }
+    }
+  return q_boxes;
+
 }
