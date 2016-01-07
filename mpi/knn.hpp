@@ -326,6 +326,7 @@ std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
 }
 
 void generate_random_points(std::vector<Point>& pts,const int num ){
+srand (time(NULL));
   pts.reserve(num);
   for (int i=0;i<num;i++){
       pts.push_back(
