@@ -78,7 +78,6 @@ int main(int argc, char **argv){
   vector<float> c_sendbuff;
   vector<int> c_count,c_displ;
   vector<float> c_recvbuf;
-  c_recvbuf.reserve(4*c_pts_per_process);
   c_count.reserve(processes);
   if (rank==0){
       generate_random_points(c_points,cnumberofpoints);
@@ -90,8 +89,9 @@ int main(int argc, char **argv){
   //of said space to each process. Should be done with MPI_Struct or MPI_Pack but
   //AINT NOBODY GOT TIME FOR THAT
   MPI_Bcast(&c_count[0],processes,MPI_INT,0,comm);
-  MPI_Scatterv(&c_sendbuff[0],&c_count[0],&c_displ[0],MPI_FLOAT,&c_recvbuf[0],4*c_pts_per_process,MPI_FLOAT,0,comm);
+  c_recvbuf.resize(6*c_pts_per_process);
 
+  MPI_Scatterv(&c_sendbuff[0],&c_count[0],&c_displ[0],MPI_FLOAT,&c_recvbuf[0],6*c_pts_per_process,MPI_FLOAT,0,comm);
 
 
   vector<Point> q_points;
@@ -111,7 +111,7 @@ int main(int argc, char **argv){
   //AINT NOBODY GOT TIME FOR THAT
   MPI_Bcast(&q_count[0],processes,MPI_INT,0,comm);
   vector<float> q_recvbuf;
-  q_recvbuf.resize(3*q_count[rank]);
+  q_recvbuf.resize(6*q_pts_per_process);
   MPI_Scatterv(&q_sendbuff[0],&q_count[0],&q_displ[0],MPI_FLOAT,&q_recvbuf[0],6*q_pts_per_process,MPI_FLOAT,0,comm);
 
   vector<Box<Point> > c_boxes;
@@ -156,9 +156,12 @@ int main(int argc, char **argv){
           for (uint j=0;j<q_boxes[i].point_cloud.size();j++){
               vector<Point> tentative_nn;
               tentative_nn=naive_search(q_boxes[i].point_cloud[j],c_boxes[i].point_cloud);
-              float cur_dist=2;
+              float cur_dist;
               if (!tentative_nn.empty()){
                   cur_dist=euclidean(tentative_nn[0],q_boxes[i].point_cloud[j]);
+                }
+              else{
+                  cur_dist=2;
                 }
               for (int dir=0;dir<27;dir++){
                   int temp_id=get_neighbor_id(dir, i);
@@ -168,7 +171,7 @@ int main(int argc, char **argv){
                       if (is_my_box(temp_id) && !c_boxes[temp_id].point_cloud.empty()){
                           vector<Point> temp=naive_search(q_boxes[i].point_cloud[j],c_boxes[temp_id].point_cloud);
                           float d_temp=euclidean(q_boxes[i].point_cloud[j],temp[0]);
-                          if (d_temp<euclidean(q_boxes[i].point_cloud[j],tentative_nn[0]) ){
+                          if (!temp.empty() && d_temp<cur_dist){
                               tentative_nn=temp;
                               cur_dist=d_temp;
                             }
@@ -294,18 +297,17 @@ int main(int argc, char **argv){
   MPI_Gatherv(&rslts_sendbuf[0],(int)rslts_sendbuf.size(),MPI_FLOAT,
       &rslts_recvbuf[0],&rslts_cnt[0],&rslts_displs[0],MPI_FLOAT,0,
       comm);
+  MPI_Barrier(comm);
   if (rank==0){
  gettimeofday(&endwtime,NULL);
   execute_time = (double)( ( endwtime.tv_usec - startwtime.tv_usec ) / 1.0e6 + endwtime.tv_sec - startwtime.tv_sec );
  cout<<"MPI duration"<<execute_time<<endl;
-      //      MPI_t
-      //      double single_time= MPi
- gettimeofday(&startwtime,NULL);
- vector<Box<QPoint> > single_results=single_threaded_search(c_points,q_points,numboxes);
- gettimeofday(&endwtime,NULL);
- execute_time = (double)( ( endwtime.tv_usec - startwtime.tv_usec ) / 1.0e6 + endwtime.tv_sec - startwtime.tv_sec );
- cout<<"Single threaded duration "<<execute_time<<endl;
-      cout<<single_results.size();
+// gettimeofday(&startwtime,NULL);
+// vector<Box<QPoint> > single_results=single_threaded_search(c_points,q_points,numboxes);
+// gettimeofday(&endwtime,NULL);
+// execute_time = (double)( ( endwtime.tv_usec - startwtime.tv_usec ) / 1.0e6 + endwtime.tv_sec - startwtime.tv_sec );
+// cout<<"Single threaded duration "<<execute_time<<endl;
+//      cout<<single_results.size();
 
     /**  Validation code
        * Simple naive search across the whole space
@@ -323,7 +325,7 @@ int main(int argc, char **argv){
 //          vector<Point> nn_real=naive_search(results[i],c_points);
 //          float d_found=euclidean(results[i],results[i].nn);
 //          float d_real=euclidean(results[i],nn_real[0]);
-//          if (abs(d_real-d_found)>0.00001) wrong_results++;
+//          if (abs(d_real-d_found)/(d_real)>0.001) wrong_results++;
 //        }
 //      cout<<"Misclassification rate: "<< (float)wrong_results/qnumberofpoints<<endl;
 //      cout<<"wrong"<<wrong_results<<endl;

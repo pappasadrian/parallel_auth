@@ -305,7 +305,7 @@ std::vector<Point> naive_search(QPoint q, std::vector<Point> search_space){
   uint siz=search_space.size();
   if (siz==0)
     {
-      cout<<"Search space is empty"<<endl;
+//      cout<<"Search space is empty"<<endl;
     }
   else {
       int min_index=0;
